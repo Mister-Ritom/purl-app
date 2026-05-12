@@ -17,14 +17,14 @@ import { UserListItem } from '../../../src/components/common/UserListItem';
 import { EmptyState } from '../../../src/components/common/EmptyState';
 import { COLORS } from '../../../src/utils/constants';
 import { Conversation } from '../../../src/types/conversation';
-import { decryptMessage } from '../../../src/services/encryption';
+import { decryptMessage, decryptWithGroupKey } from '../../../src/services/encryption';
 import firestore from '@react-native-firebase/firestore';
 import { UserProfile } from '../../../src/types/user';
 
 export default function ChatListScreen() {
   const conversations = useConversations();
   const { user } = useAuthStore();
-  const { getSharedSecretFromCache } = useChatStore();
+  const { getSharedSecretFromCache, getGroupKeyFromCache } = useChatStore();
   const [enrichedConvs, setEnrichedConvs] = useState<(Conversation & { otherUser?: UserProfile; preview: string })[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -47,24 +47,30 @@ export default function ChatListScreen() {
 
         let preview = '';
         if (conv.lastMessage) {
-          const { type, encryptedContent, nonce } = conv.lastMessage;
-          if (type === 'text') {
+          const { type, encryptedContent, nonce, senderId } = conv.lastMessage;
+          const isOwn = senderId === user.uid;
+          const prefix = isOwn ? 'You: ' : '';
+
+          let decrypted: string | null = null;
+          if (conv.isGroup) {
+            const gKey = getGroupKeyFromCache(conv.id);
+            if (gKey) decrypted = decryptWithGroupKey(gKey, encryptedContent, nonce);
+          } else {
             const otherUid = conv.participants.find((p) => p !== user.uid);
             if (otherUid) {
               const secret = getSharedSecretFromCache(otherUid);
-              if (secret) {
-                const decrypted = decryptMessage(secret, encryptedContent, nonce);
-                preview = decrypted?.slice(0, 40) ?? '';
-              } else {
-                preview = '🔒 Encrypted message';
-              }
+              if (secret) decrypted = decryptMessage(secret, encryptedContent, nonce);
             }
+          }
+
+          if (decrypted) {
+            if (type === 'text') preview = `${prefix}${decrypted.slice(0, 40)}`;
+            else if (type === 'media') preview = `${prefix}📷 ${decrypted === 'media' ? 'Media' : decrypted}`;
+            else if (type === 'audio') preview = `${prefix}🎤 Voice message`;
+            else if (type === 'document') preview = `${prefix}📄 ${decrypted}`;
+            else preview = `${prefix}Attachment`;
           } else {
-            const icons: Record<string, string> = {
-              image: '📷 Photo', video: '🎬 Video', audio: '🎵 Voice message',
-              document: '📄 Document', location: '📍 Location', call_log: '📞 Call',
-            };
-            preview = icons[type] ?? '📎 Attachment';
+            preview = '🔒 Encrypted message';
           }
         }
         return { ...conv, otherUser, preview };

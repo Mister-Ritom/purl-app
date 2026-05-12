@@ -108,19 +108,27 @@ export async function encryptFile(
 }
 
 export async function decryptFile(
-  sharedSecret: Uint8Array,
-  encryptedBytes: Uint8Array,
-  nonce: Uint8Array,
+  key: Uint8Array,
+  encryptedFileUri: string,
+  nonceBase64: string,
   destUri: string
 ): Promise<string | null> {
   try {
-    const decrypted = nacl.secretbox.open(encryptedBytes, nonce, sharedSecret);
+    const base64Content = await FileSystem.readAsStringAsync(encryptedFileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const encryptedBytes = decodeBase64(base64Content);
+    const nonce = decodeBase64(nonceBase64);
+    
+    const decrypted = nacl.secretbox.open(encryptedBytes, nonce, key);
     if (!decrypted) return null;
+    
     await FileSystem.writeAsStringAsync(destUri, encodeBase64(decrypted), {
       encoding: FileSystem.EncodingType.Base64,
     });
     return destUri;
-  } catch {
+  } catch (error) {
+    console.error('[decryptFile] Error:', error);
     return null;
   }
 }

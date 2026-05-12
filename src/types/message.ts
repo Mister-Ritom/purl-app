@@ -1,6 +1,16 @@
 import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 
-export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'location' | 'call_log';
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'location' | 'call_log' | 'media';
+
+export interface MediaItem {
+  url: string;
+  mimeType: string;
+  nonce: string;
+  size?: number;
+  fileName?: string;
+  duration?: number;
+  localCacheUri?: string;
+}
 
 export interface Message {
   id: string;
@@ -9,11 +19,7 @@ export interface Message {
   encryptedContent: string;
   nonce: string;
   decryptedContent?: string;
-  mediaUrl?: string;
-  mediaMimeType?: string;
-  mediaSize?: number;
-  mediaFileName?: string;
-  mediaDuration?: number;
+  mediaItems?: MediaItem[];
   replyToId?: string;
   replyToMessage?: Message;
   reactions: Record<string, string>;
@@ -21,9 +27,6 @@ export interface Message {
   deletedFor: string[];
   deletedForEveryone: boolean;
   timestamp: FirebaseFirestoreTypes.Timestamp;
-  localCacheUri?: string;
-  isUploading?: boolean;
-  uploadProgress?: number;
-  isSending?: boolean;
-  sendFailed?: boolean;
+  isOptimistic?: boolean;
+  isError?: boolean;
 }

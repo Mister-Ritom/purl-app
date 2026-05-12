@@ -166,7 +166,7 @@ export async function deleteMessageForEveryone(
       deletedForEveryone: true,
       encryptedContent: '',
       nonce: '',
-      mediaUrl: null,
+      mediaItems: null,
     });
 }
 
@@ -256,6 +256,17 @@ export async function getOrCreateDirectConversation(uid1: string, uid2: string):
   const existing = await findConversationBetween(uid1, uid2);
   if (existing) return existing;
   return createConversation([uid1, uid2], false);
+}
+
+export async function addMemberToGroup(
+  convId: string,
+  newMemberUid: string,
+  encryptedKey: { ciphertext: string; nonce: string }
+): Promise<void> {
+  await firestore().collection('conversations').doc(convId).update({
+    participants: firestore.FieldValue.arrayUnion(newMemberUid),
+    [`encryptedGroupKeys.${newMemberUid}`]: encryptedKey,
+  });
 }
 
 // --- AVATAR UPLOAD ---
