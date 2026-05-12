@@ -333,7 +333,6 @@ export default function ConversationScreen() {
         playsInSilentMode: true,
       });
       setIsRecording(true);
-      await recorder.prepareToRecordAsync();
       recorder.record();
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -360,7 +359,7 @@ export default function ConversationScreen() {
           mimeType: 'audio/m4a',
           nonce: '',
           localCacheUri: uri,
-          duration: Math.floor(recorder.currentTime),
+          duration: Math.floor(recorder.currentTime / 1000),
         }],
         timestamp: firestore.Timestamp.now() as any,
         reactions: {},
@@ -387,7 +386,7 @@ export default function ConversationScreen() {
           url,
           mimeType: 'audio/m4a',
           nonce: encodeBase64(nonce),
-          duration: Math.floor(recorder.currentTime),
+          duration: Math.floor(recorder.currentTime / 1000),
           size: 0,
         }],
         reactions: {},
