@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "955786749612",
+    "project_id": "purl-app",
+    "storage_bucket": "purl-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:955786749612:android:d883b5234c6efd82546109",
+        "android_client_info": {
+          "package_name": "me.ritom.purl"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLLOju2DTmdhMGinzYKHvdhp83cCG52R8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
