@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import firestore from '@react-native-firebase/firestore';
-import functions from '@react-native-firebase/functions';
+import { getFirestore, doc, collection, setDoc, Timestamp, serverTimestamp } from '@react-native-firebase/firestore';
+import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import { useAuthStore } from '../../src/store/authStore';
 import { generateInviteToken } from '../../src/utils/generateKey';
 import { COLORS } from '../../src/utils/constants';
@@ -42,37 +42,37 @@ export default function CreateKeyScreen() {
   const [maxUses, setMaxUses] = useState('5');
   const [expiry, setExpiry] = useState<Expiry>('7d');
   const [label, setLabel] = useState('');
-  const [token, setToken] = useState('');
   const [creating, setCreating] = useState(false);
 
-  React.useEffect(() => {
-    generateInviteToken().then(setToken);
-  }, []);
-
   const handleCreate = async () => {
-    if (!user || creating || !token) return;
+    if (!user || creating) return;
     setCreating(true);
     try {
+      const token = await generateInviteToken();
       const expiresAt = expiresAtDate(expiry);
-      const usesAllowed = type === 'single' ? 1 : type === 'multi' ? parseInt(maxUses, 10) : null;
-      const keyId = firestore().collection('users').doc(user.uid).collection('inviteKeys').doc().id;
+      const uses = type === 'single' ? 1 : type === 'multi' ? parseInt(maxUses, 10) : null;
 
-      await firestore().collection('users').doc(user.uid).collection('inviteKeys').doc(keyId).set({
-        id: keyId,
+      const keyData = {
         token,
-        label,
         type,
-        usesAllowed,
+        createdBy: user.uid,
+        creatorName: user.displayName || 'Anonymous',
+        usesAllowed: uses,
         usesConsumed: 0,
-        expiresAt: expiresAt ? firestore.Timestamp.fromDate(expiresAt) : null,
-        createdAt: firestore.FieldValue.serverTimestamp(),
+        expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
+        label: label.trim() || null,
         isActive: true,
-        usedBy: [],
-      });
-
-      await functions().httpsCallable('registerInviteKey')({ token, keyId });
+        createdAt: serverTimestamp(),
+      };
+      
+      const db = getFirestore();
+      
+      // 1. Create the global key (Single Source of Truth)
+      await setDoc(doc(db, 'inviteKeys', token), keyData);
+      
       router.back();
     } catch (err: any) {
+      console.error('[CreateKey] Error:', err);
       Alert.alert('Error', err.message ?? 'Failed to create key.');
     } finally {
       setCreating(false);
@@ -142,14 +142,6 @@ export default function CreateKeyScreen() {
             />
           </View>
 
-          {/* Token preview */}
-          <View style={styles.tokenCard}>
-            <Text style={styles.tokenLabel}>Token</Text>
-            <Text style={styles.tokenValue}>{token || '...'}</Text>
-            <TouchableOpacity onPress={() => generateInviteToken().then(setToken)} style={styles.refreshBtn}>
-              <Text style={styles.refreshText}>🔄 Regenerate</Text>
-            </TouchableOpacity>
-          </View>
 
           <TouchableOpacity
             style={[styles.createBtn, creating && styles.btnDisabled]}

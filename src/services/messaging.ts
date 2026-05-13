@@ -1,5 +1,13 @@
-import messaging from '@react-native-firebase/messaging';
-import firestore from '@react-native-firebase/firestore';
+import { 
+  getMessaging, 
+  setBackgroundMessageHandler, 
+  requestPermission, 
+  onMessage, 
+  onNotificationOpenedApp, 
+  getInitialNotification, 
+  AuthorizationStatus,
+} from '@react-native-firebase/messaging';
+import firestore, { Timestamp } from '@react-native-firebase/firestore';
 import notifee, { AndroidImportance, AndroidVisibility, EventType } from '@notifee/react-native';
 import { router } from 'expo-router';
 import { useCallStore } from '../store/callStore';
@@ -8,7 +16,7 @@ import { Call } from '../types/call';
 // ─── Background handler — MUST be registered at module level ─────────────────
 // This file is imported by index.ts at the top level (before any React render),
 // so this call happens before any navigator is mounted.
-messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+setBackgroundMessageHandler(getMessaging(), async (remoteMessage) => {
   const data = remoteMessage?.data;
   if (!data) return;
 
@@ -65,25 +73,25 @@ export async function setupNotifeeChannels(): Promise<void> {
 
 // ─── Foreground messaging setup ───────────────────────────────────────────────
 export async function setupMessaging(): Promise<void> {
-  const authStatus = await messaging().requestPermission();
+  const authStatus = await requestPermission(getMessaging());
   const enabled =
-    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    authStatus === AuthorizationStatus.AUTHORIZED ||
+    authStatus === AuthorizationStatus.PROVISIONAL;
 
   if (!enabled) return;
 
   // Foreground message handler
-  messaging().onMessage(async (remoteMessage) => {
+  onMessage(getMessaging(), async (remoteMessage) => {
     await handleIncomingFCMMessage(remoteMessage);
   });
 
   // Notification-tap when app was backgrounded (not terminated)
-  messaging().onNotificationOpenedApp((remoteMessage) => {
+  onNotificationOpenedApp(getMessaging(), (remoteMessage) => {
     handleNotificationTap(remoteMessage?.data);
   });
 
   // Notification-tap when app was terminated (cold start)
-  const initialNotification = await messaging().getInitialNotification();
+  const initialNotification = await getInitialNotification(getMessaging());
   if (initialNotification) {
     setTimeout(() => handleNotificationTap(initialNotification.data), 1000);
   }
@@ -103,7 +111,7 @@ async function handleIncomingFCMMessage(remoteMessage: { data?: Record<string, s
       type: (data.callType as 'voice' | 'video') ?? 'voice',
       status: 'ringing',
       channelName: data.channelName ?? data.callId,
-      createdAt: firestore.Timestamp.now(),
+      createdAt: Timestamp.now(),
       callerUsername: data.callerUsername,
       callerPhotoURL: data.callerPhotoURL,
       agoraToken: '',
@@ -134,7 +142,7 @@ function handleNotificationTap(data: Record<string, string | object> | undefined
   if (!data) return;
   const d = data as Record<string, string>;
   if (d.type === 'message' && d.convId) {
-    router.push(`/(app)/chats/${d.convId}` as any);
+    router.push(`/chats/${d.convId}` as any);
   }
   if (d.type === 'call' && d.callId) {
     router.push(`/call/${d.callId}` as any);
@@ -148,4 +156,33 @@ export function setupNotifeeListeners(): () => void {
       handleNotificationTap(detail.notification?.data as Record<string, string> | undefined);
     }
   });
+}
+
+// ─── Token Registration ───────────────────────────────────────────────────────
+export async function registerFcmToken(uid: string): Promise<void> {
+  try {
+    const token = await getMessaging().getToken();
+    if (token) {
+      await saveTokenToFirestore(uid, token);
+    }
+
+    // Handle token refresh
+    getMessaging().onTokenRefresh(async (newToken) => {
+      await saveTokenToFirestore(uid, newToken);
+    });
+  } catch (error) {
+    console.error('[Messaging] Failed to register FCM token:', error);
+  }
+}
+
+async function saveTokenToFirestore(uid: string, token: string): Promise<void> {
+  try {
+    await firestore().collection('users').doc(uid).update({
+      fcmToken: token,
+      lastTokenUpdate: Timestamp.now(),
+    });
+    console.log('[Messaging] FCM Token saved for user:', uid);
+  } catch (error) {
+    console.error('[Messaging] Failed to save FCM token to Firestore:', error);
+  }
 }

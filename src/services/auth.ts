@@ -1,7 +1,7 @@
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import messaging from '@react-native-firebase/messaging';
+import { getAuth, signInWithCredential, signOut as firebaseSignOut, GoogleAuthProvider } from '@react-native-firebase/auth';
+import { getFirestore, doc, getDoc, updateDoc, writeBatch, serverTimestamp } from '@react-native-firebase/firestore';
+import { getMessaging, getToken, onTokenRefresh } from '@react-native-firebase/messaging';
 import * as Keychain from 'react-native-keychain';
 import { createMMKV } from 'react-native-mmkv';
 import { router } from 'expo-router';
@@ -32,14 +32,14 @@ export async function signInWithGoogle(): Promise<void> {
     const idToken = userInfo.data?.idToken ?? (userInfo as any).idToken;
     if (!idToken) throw new Error('No ID token returned from Google Sign-In');
 
-    const { GoogleAuthProvider } = await import('@react-native-firebase/auth');
     const credential = GoogleAuthProvider.credential(idToken);
-    const result = await auth().signInWithCredential(credential);
+    const result = await signInWithCredential(getAuth(), credential);
     const uid = result.user.uid;
 
-    const userDoc = await firestore().collection('users').doc(uid).get();
+    const userDocRef = doc(getFirestore(), 'users', uid);
+    const userDoc = await getDoc(userDocRef);
 
-    if (!userDoc.exists) {
+    if (!userDoc.exists()) {
       router.replace('/(auth)/username');
     } else {
       const keyPair = await getOrCreateKeyPair(uid);
@@ -68,20 +68,31 @@ export async function signOut(): Promise<void> {
   useAuthStore.getState().setUserProfile(null);
   useAuthStore.getState().setKeyPair(null);
 
-  await auth().signOut();
+  await firebaseSignOut(getAuth());
   router.replace('/(auth)/welcome');
 }
 
 export async function registerFCMToken(uid: string): Promise<void> {
   try {
-    const token = await messaging().getToken();
-    await firestore().collection('users').doc(uid).update({ fcmToken: token });
+    const token = await getToken(getMessaging());
+    if (!token) return;
+    const userRef = doc(getFirestore(), 'users', uid);
+    await updateDoc(userRef, { fcmToken: token });
 
-    messaging().onTokenRefresh(async (newToken) => {
-      await firestore().collection('users').doc(uid).update({ fcmToken: newToken });
+    onTokenRefresh(getMessaging(), async (newToken) => {
+      try {
+        await updateDoc(userRef, { fcmToken: newToken });
+      } catch (e) {
+        console.warn('FCM token refresh update failed:', e);
+      }
     });
-  } catch (e) {
-    console.warn('FCM token registration failed:', e);
+  } catch (e: any) {
+    // Gracefully handle "No APNS token" which happens on iOS simulator
+    if (e.message?.includes('APNS') || e.code?.includes('apns')) {
+      console.log('Skipping FCM token: APNS not ready (likely simulator)');
+    } else {
+      console.warn('FCM token registration failed:', e);
+    }
   }
 }
 
@@ -90,10 +101,10 @@ export async function completeOnboarding(
   username: string,
   displayName: string
 ): Promise<void> {
-  const batch = firestore().batch();
+  const batch = writeBatch(getFirestore());
 
-  const userRef = firestore().collection('users').doc(uid);
-  const usernameRef = firestore().collection('usernames').doc(username.toLowerCase());
+  const userRef = doc(getFirestore(), 'users', uid);
+  const usernameRef = doc(getFirestore(), 'usernames', username.toLowerCase());
 
   const keyPair = await getOrCreateKeyPair(uid);
   const { encodeBase64 } = await import('tweetnacl-util');
@@ -116,10 +127,10 @@ export async function completeOnboarding(
     about: '',
     publicKey: encodeBase64(keyPair.publicKey),
     isOnline: true,
-    lastSeen: firestore.FieldValue.serverTimestamp(),
+    lastSeen: serverTimestamp(),
     fcmToken: '',
     settings: defaultSettings,
-    createdAt: firestore.FieldValue.serverTimestamp(),
+    createdAt: serverTimestamp(),
   });
 
   batch.set(usernameRef, { uid, username: username.toLowerCase() });

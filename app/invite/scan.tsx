@@ -11,11 +11,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import functions from '@react-native-firebase/functions';
+import { 
+  getFirestore, 
+  doc, 
+  runTransaction, 
+  serverTimestamp,
+  Timestamp, 
+} from '@react-native-firebase/firestore';
+import { useAuthStore } from '../../src/store/authStore';
 import { COLORS } from '../../src/utils/constants';
 import { validateInviteToken, formatToken } from '../../src/utils/generateKey';
 
 export default function ScanScreen() {
+  const { user: currentUser } = useAuthStore();
   const { token: prefilledToken } = useLocalSearchParams<{ token?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -50,14 +58,82 @@ export default function ScanScreen() {
       setScanned(false);
       return;
     }
+
+    if (!currentUser) {
+      Alert.alert('Error', 'You must be logged in to redeem an invite.');
+      return;
+    }
+
     setRedeeming(true);
-    setStatus('Connecting...');
+    setStatus('Validating key...');
+    const db = getFirestore();
+
     try {
-      const result = await functions().httpsCallable('redeemInviteKey')({ token: clean });
-      const { conversationId } = result.data as { conversationId: string; ownerUid: string };
-      setStatus('✅ Connected! Opening chat...');
-      setTimeout(() => router.replace(`/(app)/chats/${conversationId}`), 800);
+      const finalId = await runTransaction(db, async (transaction) => {
+        const keyRef = doc(db, 'inviteKeys', clean);
+        const keySnap = await transaction.get(keyRef);
+
+        if (!keySnap.exists) throw new Error('Invite key not found.');
+        const keyData = keySnap.data()!;
+
+        if (!keyData.isActive) throw new Error('This invite key is no longer active.');
+        
+        if (keyData.expiresAt && (keyData.expiresAt as Timestamp).toDate() < new Date()) {
+          throw new Error('This invite key has expired.');
+        }
+
+        if (keyData.usesAllowed !== null && keyData.usesConsumed >= keyData.usesAllowed) {
+          throw new Error('This invite key has reached its maximum usage.');
+        }
+
+        if (keyData.createdBy === currentUser.uid) {
+          throw new Error('You cannot redeem your own invite key.');
+        }
+
+        // Deterministic conversation ID for direct chat
+        const participants = [keyData.createdBy, currentUser.uid].sort();
+        const convId = `direct_${participants[0]}_${participants[1]}`;
+        const convRef = doc(db, 'conversations', convId);
+        const convSnap = await transaction.get(convRef);
+
+        if (!convSnap.exists) {
+          // Create the conversation
+          transaction.set(convRef, {
+            participants,
+            isGroup: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastMessage: {
+              text: 'Conversation started via invite',
+              senderId: 'system',
+              timestamp: serverTimestamp(),
+            },
+            inviteKeyUsed: clean,
+            metadata: {
+              [participants[0]]: { joinedAt: serverTimestamp() },
+              [participants[1]]: { joinedAt: serverTimestamp() },
+            }
+          });
+        }
+
+        // Consume the key (Single Source of Truth — global collection only)
+        const newConsumed = (keyData.usesConsumed || 0) + 1;
+        const stillActive = keyData.usesAllowed !== null && newConsumed >= keyData.usesAllowed ? false : true;
+        
+        transaction.update(keyRef, {
+          usesConsumed: newConsumed,
+          isActive: stillActive,
+        });
+
+
+        return convId;
+      });
+
+      setStatus('✅ Success! Opening chat...');
+      setTimeout(() => router.replace(`/chats/${finalId}`), 1000);
+
     } catch (err: any) {
+      console.error('[Redeem] Error:', err);
       setStatus('');
       setScanned(false);
       Alert.alert('Redeem failed', err.message ?? 'Invalid or expired invite key.');

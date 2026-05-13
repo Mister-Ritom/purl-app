@@ -18,8 +18,8 @@ export interface Conversation {
     timestamp: FirebaseFirestoreTypes.Timestamp;
   };
   createdAt: FirebaseFirestoreTypes.Timestamp;
+  unreadCounts: Record<string, number>;
   // Derived client-side:
   otherUser?: UserProfile;
-  unreadCount?: number;
   lastMessageDecrypted?: string;
 }

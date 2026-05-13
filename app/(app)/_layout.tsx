@@ -1,90 +1,73 @@
-import React from 'react';
-import { Tabs, Redirect } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
-import { useAuthStore } from '../../src/store/authStore';
-import { COLORS } from '../../src/utils/constants';
-import { LoadingScreen } from '../../src/components/common/LoadingScreen';
+import React from "react";
+import { Redirect } from "expo-router";
+import { withLayoutContext } from "expo-router";
+import { createNativeBottomTabNavigator } from "@bottom-tabs/react-navigation";
 
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
-  return (
-    <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
-      <Text style={styles.tabEmoji}>{emoji}</Text>
-    </View>
-  );
-}
+import { useAuthStore } from "../../src/store/authStore";
+import { COLORS } from "../../src/utils/constants";
+import { LoadingScreen } from "../../src/components/common/LoadingScreen";
+
+const NativeTabs = withLayoutContext(
+  createNativeBottomTabNavigator().Navigator,
+);
 
 export default function AppLayout() {
   const { user, userProfile, isLoading } = useAuthStore();
 
   if (isLoading) return <LoadingScreen />;
-  if (!user || !userProfile?.username) return <Redirect href="/(auth)/welcome" />;
+  if (!user || !userProfile?.username)
+    return <Redirect href="/(auth)/welcome" />;
 
   return (
-    <Tabs
+    <NativeTabs
+      minimizeBehavior="automatic"
       screenOptions={{
-        tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
-        tabBarLabelStyle: styles.tabLabel,
-        headerShown: false,
       }}
     >
-      <Tabs.Screen
+      <NativeTabs.Screen
         name="chats"
         options={{
-          title: 'Chats',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />,
+          title: "Chats",
+          tabBarIcon: () => ({
+            sfSymbol: "bubble.left.and.bubble.right.fill",
+            materialSymbol: "chat",
+          }),
         }}
       />
-      <Tabs.Screen
+
+      <NativeTabs.Screen
         name="status"
         options={{
-          title: 'Status',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="⭕" focused={focused} />,
+          title: "Status",
+          tabBarIcon: () => ({
+            sfSymbol: "circle.dashed",
+            materialSymbol: "published_with_changes",
+          }),
         }}
       />
-      <Tabs.Screen
+
+      <NativeTabs.Screen
         name="calls"
         options={{
-          title: 'Calls',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📞" focused={focused} />,
+          title: "Calls",
+          tabBarIcon: () => ({
+            sfSymbol: "phone.fill",
+            materialSymbol: "call",
+          }),
         }}
       />
-      <Tabs.Screen
+
+      <NativeTabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused} />,
+          title: "Settings",
+          tabBarIcon: () => ({
+            sfSymbol: "gearshape.fill",
+            materialSymbol: "settings",
+          }),
         }}
       />
-    </Tabs>
+    </NativeTabs>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: COLORS.surface,
-    borderTopColor: COLORS.border,
-    borderTopWidth: 1,
-    height: 80,
-    paddingBottom: 20,
-    paddingTop: 8,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  tabIcon: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-  },
-  tabIconActive: {
-    backgroundColor: `${COLORS.primary}20`,
-  },
-  tabEmoji: {
-    fontSize: 20,
-  },
-});

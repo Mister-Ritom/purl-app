@@ -25,12 +25,12 @@ function hashUidToNumber(uid: string): number {
     hash = ((hash << 5) - hash) + char;
     hash |= 0;
   }
-  return Math.abs(hash) % 1000000;
+  return Math.abs(hash);
 }
 
 // ─── 1. generateAgoraToken ─────────────────────────────────────────────────
 export const generateAgoraToken = onCall(
-  { secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE] },
+  { secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public' },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Authentication required');
@@ -73,41 +73,145 @@ export const generateAgoraToken = onCall(
   }
 );
 
-// ─── 2. registerInviteKey ──────────────────────────────────────────────────
-export const registerInviteKey = onCall(async (request) => {
+// ─── 2. initiateCall ────────────────────────────────────────────────────────
+export const initiateCall = onCall(
+  { secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { receiverIds, type } = request.data as { receiverIds: string[]; type: 'voice' | 'video' };
+    if (!receiverIds || !receiverIds.length || !type) {
+      throw new HttpsError('invalid-argument', 'receiverIds and type are required');
+    }
+
+    const callerId = request.auth.uid;
+    const appId = AGORA_APP_ID.value();
+    const certificate = AGORA_APP_CERTIFICATE.value();
+
+    if (!appId || !certificate) {
+      throw new HttpsError('internal', 'Agora credentials not configured');
+    }
+
+    const callRef = db.collection('calls').doc();
+    const callId = callRef.id;
+    const channelName = callId;
+
+    // Generate token for the caller
+    const expireTs = Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_S;
+    const agoraUid = hashUidToNumber(callerId);
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appId,
+      certificate,
+      channelName,
+      agoraUid,
+      RtcRole.PUBLISHER,
+      expireTs
+    );
+
+    const callerDoc = await db.collection('users').doc(callerId).get();
+    const callerData = callerDoc.data();
+
+    await callRef.set({
+      id: callId,
+      callerId,
+      receiverIds,
+      type,
+      status: 'ringing',
+      channelName,
+      agoraToken: token, // This is the token for the caller
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      callerUsername: callerData?.username ?? callerData?.displayName ?? 'Someone',
+      callerPhotoURL: callerData?.photoURL ?? '',
+    });
+
+    return { callId, agoraToken: token };
+  }
+);
+
+// ─── 2. createInviteKey ───────────────────────────────────────────────────
+export const createInviteKey = onCall({ invoker: 'public' }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Authentication required');
   }
 
-  const { token, keyId } = request.data as { token?: string; keyId?: string };
-  if (!token || !keyId) {
-    throw new HttpsError('invalid-argument', 'token and keyId are required');
-  }
-
   const uid = request.auth.uid;
-  const ref = db.collection('inviteTokenIndex').doc(token);
-  const existing = await ref.get();
+  const { type, maxUses, expiryDays, label } = request.data as {
+    type: 'single' | 'multi' | 'permanent';
+    maxUses?: number;
+    expiryDays?: number;
+    label?: string;
+  };
 
-  if (existing.exists) {
-    const data = existing.data();
-    if (data?.uid !== uid) {
-      throw new HttpsError('already-exists', 'Token already registered by another user');
-    }
-    // Same user re-registering — idempotent
-    return { success: true };
+  // Generate a unique token
+  const generateToken = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid ambiguous chars
+    const part = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    return `${part()}-${part()}-${part()}`;
+  };
+
+  let token = generateToken();
+  let attempts = 0;
+  while (attempts < 5) {
+    const existing = await db.collection('inviteTokenIndex').doc(token).get();
+    if (!existing.exists) break;
+    token = generateToken();
+    attempts++;
   }
 
-  await ref.set({
+  const expiresAt = expiryDays ? admin.firestore.Timestamp.fromDate(new Date(Date.now() + expiryDays * 86400000)) : null;
+  const usesAllowed = type === 'single' ? 1 : type === 'multi' ? (maxUses || 5) : 999999;
+
+  const keyRef = db.collection('users').doc(uid).collection('inviteKeys').doc();
+  const keyId = keyRef.id;
+
+  const batch = db.batch();
+
+  // 1. User's personal key list
+  batch.set(keyRef, {
+    id: keyId,
+    token,
+    label: label || '',
+    type,
+    usesAllowed,
+    usesConsumed: 0,
+    expiresAt,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    isActive: true,
+    usedBy: [],
+  });
+
+  // 2. Global index for redemption
+  batch.set(db.collection('inviteTokenIndex').doc(token), {
     uid,
     keyId,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  await batch.commit();
+
+  return { success: true, token, keyId };
+});
+
+// Deprecated: keeping for compatibility during migration
+export const registerInviteKey = onCall({ invoker: 'public' }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  const { token, keyId } = request.data as { token?: string; keyId?: string };
+  if (!token || !keyId) throw new HttpsError('invalid-argument', 'Missing params');
+  
+  await db.collection('inviteTokenIndex').doc(token).set({
+    uid: request.auth.uid,
+    keyId,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
   return { success: true };
 });
 
 // ─── 3. redeemInviteKey ───────────────────────────────────────────────────
-export const redeemInviteKey = onCall(async (request) => {
+export const redeemInviteKey = onCall({ invoker: 'public' }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Authentication required');
   }
@@ -350,7 +454,7 @@ export const sendCallNotification = onDocumentCreated(
       },
       apns: {
         headers: {
-          'apns-push-type': 'voip',
+          'apns-push-type': 'background',
           'apns-priority': '10',
           'apns-expiration': String(Math.floor(Date.now() / 1000) + 30),
         },

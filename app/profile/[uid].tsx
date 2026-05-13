@@ -10,13 +10,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { Avatar } from '../../src/components/common/Avatar';
 import { LoadingScreen } from '../../src/components/common/LoadingScreen';
 import { COLORS } from '../../src/utils/constants';
 import { UserProfile } from '../../src/types/user';
 import { useAuthStore } from '../../src/store/authStore';
-import { getOrCreateDirectConversation } from '../../src/services/firestore';
+import { findConversationBetween } from '../../src/services/firestore';
 
 export default function ProfileScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
@@ -29,8 +29,8 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!uid) return;
-    firestore().collection('users').doc(uid).get().then((doc) => {
-      if (doc.exists()) setProfile({ uid, ...doc.data() } as UserProfile);
+    getDoc(doc(getFirestore(), 'users', uid)).then((docSnap) => {
+      if (docSnap.exists()) setProfile({ uid, ...docSnap.data() } as UserProfile);
       setLoading(false);
     });
   }, [uid]);
@@ -39,9 +39,25 @@ export default function ProfileScreen() {
     if (!user || !profile || startingChat) return;
     setStartingChat(true);
     try {
-      const convId = await getOrCreateDirectConversation(user.uid, profile.uid);
-      router.push(`/(app)/chats/${convId}`);
-    } catch {
+      const convId = await findConversationBetween(user.uid, profile.uid);
+      if (convId) {
+        router.push(`/chats/${convId}`);
+      } else {
+        // No existing conversation, ask for invite key
+        Alert.alert(
+          'Start Conversation',
+          `You need an invite key to start a chat with @${profile.username}. Do you have one?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Enter Key', 
+              onPress: () => router.push('/invite/scan') 
+            }
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Error finding conversation:', err);
       Alert.alert('Error', 'Could not open conversation.');
     } finally {
       setStartingChat(false);

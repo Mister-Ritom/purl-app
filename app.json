@@ -104,7 +104,9 @@
             "buildReactNativeFromSource": true
           }
         }
-      ]
+      ],
+      "expo-sharing",
+      "react-native-bottom-tabs"
     ],
     "experiments": {
       "typedRoutes": true

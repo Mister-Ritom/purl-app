@@ -72,7 +72,7 @@ export default function CreateGroupScreen() {
         encryptedGroupKeys
       });
 
-      router.replace(`/(app)/chats/${convId}`);
+      router.replace(`/chats/${convId}`);
     } catch (err: any) {
       Alert.alert('Error', err.message);
       setIsCreating(false);

@@ -1,5 +1,12 @@
-import database from '@react-native-firebase/database';
-import firestore from '@react-native-firebase/firestore';
+import { 
+  getDatabase, 
+  ref, 
+  onValue, 
+  set, 
+  onDisconnect, 
+  serverTimestamp as databaseTimestamp
+} from '@react-native-firebase/database';
+import { getFirestore, doc, updateDoc, serverTimestamp as firestoreTimestamp } from '@react-native-firebase/firestore';
 import { AppState, AppStateStatus } from 'react-native';
 
 let presenceInitialized = false;
@@ -9,42 +16,38 @@ export function initPresence(uid: string): () => void {
   if (presenceInitialized) return () => {};
   presenceInitialized = true;
 
-  const presenceRef = database().ref(`presence/${uid}`);
-  const connectedRef = database().ref('.info/connected');
+  const presenceRef = ref(getDatabase(), `presence/${uid}`);
+  const connectedRef = ref(getDatabase(), '.info/connected');
 
-  const connectedListener = connectedRef.on('value', (snap) => {
+  const connectedListener = onValue(connectedRef, (snap) => {
     if (snap.val()) {
-      presenceRef
-        .onDisconnect()
-        .set({ online: false, lastSeen: database.ServerValue.TIMESTAMP });
-      presenceRef.set({ online: true });
+      onDisconnect(presenceRef).set({ online: false, lastSeen: databaseTimestamp() });
+      set(presenceRef, { online: true });
 
-      firestore().collection('users').doc(uid).update({ isOnline: true }).catch(() => {});
+      const userDocRef = doc(getFirestore(), 'users', uid);
+      updateDoc(userDocRef, { isOnline: true }).catch(() => {});
     }
   });
 
   appStateSubscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+    const userDocRef = doc(getFirestore(), 'users', uid);
     if (state === 'active') {
-      presenceRef.set({ online: true });
-      firestore().collection('users').doc(uid).update({ isOnline: true }).catch(() => {});
+      set(presenceRef, { online: true });
+      updateDoc(userDocRef, { isOnline: true }).catch(() => {});
     } else {
-      presenceRef.set({
+      set(presenceRef, {
         online: false,
-        lastSeen: database.ServerValue.TIMESTAMP,
+        lastSeen: databaseTimestamp(),
       });
-      firestore()
-        .collection('users')
-        .doc(uid)
-        .update({
-          isOnline: false,
-          lastSeen: firestore.FieldValue.serverTimestamp(),
-        })
-        .catch(() => {});
+      updateDoc(userDocRef, {
+        isOnline: false,
+        lastSeen: firestoreTimestamp(),
+      }).catch(() => {});
     }
   });
 
   return () => {
-    connectedRef.off('value', connectedListener as any);
+    connectedListener();
     appStateSubscription?.remove();
     presenceInitialized = false;
   };

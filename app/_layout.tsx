@@ -3,20 +3,22 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
+import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { useAuthStore } from '../src/store/authStore';
 import { usePresence } from '../src/hooks/usePresence';
 import { configureGoogleSignIn } from '../src/services/auth';
-import { setupNotifeeChannels, setupMessaging, setupNotifeeListeners } from '../src/services/messaging';
+import { getOrCreateKeyPair } from '../src/services/encryption';
+import { setupNotifeeChannels, setupMessaging, setupNotifeeListeners, registerFcmToken } from '../src/services/messaging';
 import { setupDeepLinkHandler } from '../src/services/deeplink';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
+import { IncomingCallOverlay } from '../src/components/call/IncomingCallOverlay';
 
-// Enable Firestore offline persistence
-firestore().settings({ persistence: true });
+// Firestore persistence is enabled by default in React Native Firebase
+
 
 export default function RootLayout() {
-  const { user, isLoading, setUser, setUserProfile, setLoading } = useAuthStore();
+  const { user, isLoading, setUser, setUserProfile, setKeyPair, setLoading } = useAuthStore();
 
   usePresence();
 
@@ -34,17 +36,27 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    const unsub = auth().onAuthStateChanged(async (firebaseUser) => {
+    const unsub = onAuthStateChanged(getAuth(), async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const doc = await firestore().collection('users').doc(firebaseUser.uid).get();
-        if (doc.exists()) {
-          setUserProfile(doc.data() as any);
+        registerFcmToken(firebaseUser.uid);
+        const userDocRef = doc(getFirestore(), 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          setUserProfile(userDoc.data() as any);
         } else {
           setUserProfile(null);
         }
+        // Always load the encryption key pair on session restore
+        try {
+          const kp = await getOrCreateKeyPair(firebaseUser.uid);
+          setKeyPair(kp);
+        } catch (e) {
+          console.error('[RootLayout] Failed to load key pair:', e);
+        }
       } else {
         setUserProfile(null);
+        setKeyPair(null);
       }
       setLoading(false);
     });
@@ -60,9 +72,9 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(app)" />
+          {/* Sits above the native tab layer — tab bar never shows here */}
+          <Stack.Screen name="chats/[convId]" options={{ headerShown: false }} />
           <Stack.Screen name="call/[callId]" options={{ presentation: 'fullScreenModal' }} />
-          <Stack.Screen name="status/view/[uid]" options={{ presentation: 'fullScreenModal' }} />
-          <Stack.Screen name="status/create" options={{ presentation: 'modal' }} />
           <Stack.Screen name="invite/scan" options={{ presentation: 'modal' }} />
           <Stack.Screen name="invite/create" options={{ presentation: 'modal' }} />
           <Stack.Screen name="profile/[uid]" />
@@ -70,6 +82,7 @@ export default function RootLayout() {
           <Stack.Screen name="search/index" options={{ presentation: 'modal' }} />
           <Stack.Screen name="group/create" options={{ presentation: 'modal' }} />
         </Stack>
+        <IncomingCallOverlay />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

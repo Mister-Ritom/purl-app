@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import auth from '@react-native-firebase/auth';
+import { getAuth } from '@react-native-firebase/auth';
+import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { checkUsernameAvailable } from '../../src/services/firestore';
 import { completeOnboarding } from '../../src/services/auth';
 import { useAuthStore } from '../../src/store/authStore';
@@ -53,9 +54,8 @@ export default function UsernameScreen() {
     setSubmitting(true);
     try {
       await completeOnboarding(user.uid, username, displayName.trim());
-      const firestore = (await import('@react-native-firebase/firestore')).default;
-      const doc = await firestore().collection('users').doc(user.uid).get();
-      setUserProfile(doc.data() as any);
+      const docSnap = await getDoc(doc(getFirestore(), 'users', user.uid));
+      setUserProfile(docSnap.data() as any);
       router.replace('/(app)/chats');
     } catch (err: any) {
       Alert.alert('Error', err.message ?? 'Failed to claim username. Try another.');

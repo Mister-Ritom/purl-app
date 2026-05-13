@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.registerPublicKey = exports.onUserDeleted = exports.expireStatuses = exports.sendCallNotification = exports.sendMessageNotification = exports.redeemInviteKey = exports.registerInviteKey = exports.generateAgoraToken = void 0;
+exports.registerPublicKey = exports.onUserDeleted = exports.expireStatuses = exports.sendCallNotification = exports.sendMessageNotification = exports.redeemInviteKey = exports.registerInviteKey = exports.createInviteKey = exports.initiateCall = exports.generateAgoraToken = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -24,10 +24,10 @@ function hashUidToNumber(uid) {
         hash = ((hash << 5) - hash) + char;
         hash |= 0;
     }
-    return Math.abs(hash) % 1000000;
+    return Math.abs(hash);
 }
 // ─── 1. generateAgoraToken ─────────────────────────────────────────────────
-exports.generateAgoraToken = (0, https_1.onCall)({ secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE] }, async (request) => {
+exports.generateAgoraToken = (0, https_1.onCall)({ secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authentication required');
     }
@@ -54,35 +54,111 @@ exports.generateAgoraToken = (0, https_1.onCall)({ secrets: [AGORA_APP_ID, AGORA
     }
     return { token, uid: agoraUid, expiresAt: expireTs };
 });
-// ─── 2. registerInviteKey ──────────────────────────────────────────────────
-exports.registerInviteKey = (0, https_1.onCall)(async (request) => {
+// ─── 2. initiateCall ────────────────────────────────────────────────────────
+exports.initiateCall = (0, https_1.onCall)({ secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public' }, async (request) => {
+    var _a, _b, _c;
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
+    const { receiverIds, type } = request.data;
+    if (!receiverIds || !receiverIds.length || !type) {
+        throw new https_1.HttpsError('invalid-argument', 'receiverIds and type are required');
+    }
+    const callerId = request.auth.uid;
+    const appId = AGORA_APP_ID.value();
+    const certificate = AGORA_APP_CERTIFICATE.value();
+    if (!appId || !certificate) {
+        throw new https_1.HttpsError('internal', 'Agora credentials not configured');
+    }
+    const callRef = db.collection('calls').doc();
+    const callId = callRef.id;
+    const channelName = callId;
+    // Generate token for the caller
+    const expireTs = Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_S;
+    const agoraUid = hashUidToNumber(callerId);
+    const token = agora_access_token_1.RtcTokenBuilder.buildTokenWithUid(appId, certificate, channelName, agoraUid, agora_access_token_1.RtcRole.PUBLISHER, expireTs);
+    const callerDoc = await db.collection('users').doc(callerId).get();
+    const callerData = callerDoc.data();
+    await callRef.set({
+        id: callId,
+        callerId,
+        receiverIds,
+        type,
+        status: 'ringing',
+        channelName,
+        agoraToken: token, // This is the token for the caller
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        callerUsername: (_b = (_a = callerData === null || callerData === void 0 ? void 0 : callerData.username) !== null && _a !== void 0 ? _a : callerData === null || callerData === void 0 ? void 0 : callerData.displayName) !== null && _b !== void 0 ? _b : 'Someone',
+        callerPhotoURL: (_c = callerData === null || callerData === void 0 ? void 0 : callerData.photoURL) !== null && _c !== void 0 ? _c : '',
+    });
+    return { callId, agoraToken: token };
+});
+// ─── 2. createInviteKey ───────────────────────────────────────────────────
+exports.createInviteKey = (0, https_1.onCall)({ invoker: 'public' }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
+    const uid = request.auth.uid;
+    const { type, maxUses, expiryDays, label } = request.data;
+    // Generate a unique token
+    const generateToken = () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid ambiguous chars
+        const part = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        return `${part()}-${part()}-${part()}`;
+    };
+    let token = generateToken();
+    let attempts = 0;
+    while (attempts < 5) {
+        const existing = await db.collection('inviteTokenIndex').doc(token).get();
+        if (!existing.exists)
+            break;
+        token = generateToken();
+        attempts++;
+    }
+    const expiresAt = expiryDays ? admin.firestore.Timestamp.fromDate(new Date(Date.now() + expiryDays * 86400000)) : null;
+    const usesAllowed = type === 'single' ? 1 : type === 'multi' ? (maxUses || 5) : 999999;
+    const keyRef = db.collection('users').doc(uid).collection('inviteKeys').doc();
+    const keyId = keyRef.id;
+    const batch = db.batch();
+    // 1. User's personal key list
+    batch.set(keyRef, {
+        id: keyId,
+        token,
+        label: label || '',
+        type,
+        usesAllowed,
+        usesConsumed: 0,
+        expiresAt,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        isActive: true,
+        usedBy: [],
+    });
+    // 2. Global index for redemption
+    batch.set(db.collection('inviteTokenIndex').doc(token), {
+        uid,
+        keyId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+    return { success: true, token, keyId };
+});
+// Deprecated: keeping for compatibility during migration
+exports.registerInviteKey = (0, https_1.onCall)({ invoker: 'public' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authentication required');
     }
     const { token, keyId } = request.data;
-    if (!token || !keyId) {
-        throw new https_1.HttpsError('invalid-argument', 'token and keyId are required');
-    }
-    const uid = request.auth.uid;
-    const ref = db.collection('inviteTokenIndex').doc(token);
-    const existing = await ref.get();
-    if (existing.exists) {
-        const data = existing.data();
-        if ((data === null || data === void 0 ? void 0 : data.uid) !== uid) {
-            throw new https_1.HttpsError('already-exists', 'Token already registered by another user');
-        }
-        // Same user re-registering — idempotent
-        return { success: true };
-    }
-    await ref.set({
-        uid,
+    if (!token || !keyId)
+        throw new https_1.HttpsError('invalid-argument', 'Missing params');
+    await db.collection('inviteTokenIndex').doc(token).set({
+        uid: request.auth.uid,
         keyId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     return { success: true };
 });
 // ─── 3. redeemInviteKey ───────────────────────────────────────────────────
-exports.redeemInviteKey = (0, https_1.onCall)(async (request) => {
+exports.redeemInviteKey = (0, https_1.onCall)({ invoker: 'public' }, async (request) => {
     var _a, _b, _c, _d;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authentication required');

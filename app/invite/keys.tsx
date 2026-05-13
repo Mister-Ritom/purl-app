@@ -20,7 +20,7 @@ import { COLORS } from '../../src/utils/constants';
 import { InviteKey } from '../../src/types/inviteKey';
 import { formatExpiryCountdown } from '../../src/utils/formatTime';
 import { buildInviteLink } from '../../src/services/deeplink';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, doc, updateDoc } from '@react-native-firebase/firestore';
 
 export default function InviteKeysScreen() {
   const { keys, loading } = useInviteKeys();
@@ -32,7 +32,7 @@ export default function InviteKeysScreen() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Revoke', style: 'destructive', onPress: async () => {
-          await firestore().collection('users').doc(user!.uid).collection('inviteKeys').doc(key.id).update({ isActive: false });
+          await updateDoc(doc(getFirestore(), 'users', user!.uid, 'inviteKeys', key.id), { isActive: false });
           setSelectedKey(null);
         }
       },

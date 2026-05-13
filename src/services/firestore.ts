@@ -1,5 +1,24 @@
-import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  getDoc, 
+  updateDoc, 
+  addDoc, 
+  setDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  limit as firestoreLimit, 
+  writeBatch, 
+  serverTimestamp, 
+  arrayUnion,
+  getDocs,
+  increment
+} from '@react-native-firebase/firestore';
+import { getStorage, ref as storageRef, putFile, getDownloadURL } from '@react-native-firebase/storage';
 import { Message } from '../types/message';
 import { Conversation } from '../types/conversation';
 import { UserProfile } from '../types/user';
@@ -7,19 +26,22 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 // --- USER ---
 export async function fetchUserProfile(uid: string): Promise<UserProfile | null> {
-  const doc = await firestore().collection('users').doc(uid).get();
-  if (!doc.exists()) return null;
-  return { id: doc.id, ...doc.data() } as unknown as UserProfile;
+  const userDocRef = doc(getFirestore(), 'users', uid);
+  const userDoc = await getDoc(userDocRef);
+  if (!userDoc.exists()) return null;
+  return { id: userDoc.id, ...userDoc.data() } as unknown as UserProfile;
 }
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
-  await firestore().collection('users').doc(uid).update(data);
+  const userDocRef = doc(getFirestore(), 'users', uid);
+  await updateDoc(userDocRef, data);
 }
 
 // --- USERNAME ---
 export async function checkUsernameAvailable(username: string): Promise<boolean> {
-  const doc = await firestore().collection('usernames').doc(username.toLowerCase()).get();
-  return !doc.exists();
+  const usernameDocRef = doc(getFirestore(), 'usernames', username.toLowerCase());
+  const usernameDoc = await getDoc(usernameDocRef);
+  return !usernameDoc.exists();
 }
 
 // --- CONVERSATIONS ---
@@ -27,21 +49,22 @@ export function subscribeToConversations(
   uid: string,
   onData: (convs: Conversation[]) => void
 ): () => void {
-  return firestore()
-    .collection('conversations')
-    .where('participants', 'array-contains', uid)
-    .orderBy('lastMessage.timestamp', 'desc')
-    .onSnapshot((snapshot) => {
-      if (!snapshot || !snapshot.docs) {
-        onData([]);
-        return;
-      }
-      const convs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Conversation[];
-      onData(convs);
-    });
+  const q = query(
+    collection(getFirestore(), 'conversations'),
+    where('participants', 'array-contains', uid),
+    orderBy('lastMessage.timestamp', 'desc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    if (!snapshot || !snapshot.docs) {
+      onData([]);
+      return;
+    }
+    const convs = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Conversation[];
+    onData(convs);
+  });
 }
 
 export async function createConversation(
@@ -49,22 +72,24 @@ export async function createConversation(
   isGroup: boolean,
   groupData?: { groupName: string; groupPhotoUrl?: string; admins: string[]; encryptedGroupKeys: Record<string, { ciphertext: string; nonce: string }> }
 ): Promise<string> {
-  const ref = await firestore().collection('conversations').add({
+  const convsRef = collection(getFirestore(), 'conversations');
+  const docRef = await addDoc(convsRef, {
     participants,
     isGroup,
-    createdAt: firestore.FieldValue.serverTimestamp(),
+    createdAt: serverTimestamp(),
     lastMessage: null,
     ...(groupData ?? {}),
   });
-  return ref.id;
+  return docRef.id;
 }
 
 export async function findConversationBetween(uid1: string, uid2: string): Promise<string | null> {
-  const snap = await firestore()
-    .collection('conversations')
-    .where('participants', 'array-contains', uid1)
-    .where('isGroup', '==', false)
-    .get();
+  const q = query(
+    collection(getFirestore(), 'conversations'),
+    where('participants', 'array-contains', uid1),
+    where('isGroup', '==', false)
+  );
+  const snap = await getDocs(q);
 
   for (const doc of snap.docs) {
     const data = doc.data();
@@ -76,49 +101,57 @@ export async function findConversationBetween(uid1: string, uid2: string): Promi
 // --- MESSAGES ---
 export function subscribeToMessages(
   convId: string,
-  limit: number,
+  limitCount: number,
   onData: (msgs: Message[]) => void
 ): () => void {
-  return firestore()
-    .collection('conversations')
-    .doc(convId)
-    .collection('messages')
-    .orderBy('timestamp', 'desc')
-    .limit(limit)
-    .onSnapshot((snapshot) => {
-      if (!snapshot || !snapshot.docs) {
-        onData([]);
-        return;
-      }
-      const msgs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Message[];
-      onData(msgs);
-    });
+  const q = query(
+    collection(getFirestore(), 'conversations', convId, 'messages'),
+    orderBy('timestamp', 'desc'),
+    firestoreLimit(limitCount)
+  );
+  return onSnapshot(q, (snapshot) => {
+    if (!snapshot || !snapshot.docs) {
+      onData([]);
+      return;
+    }
+    const msgs = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Message[];
+    onData(msgs);
+  });
 }
 
 export async function sendMessage(
   convId: string,
   message: Omit<Message, 'id'>
 ): Promise<string> {
-  const ref = await firestore()
-    .collection('conversations')
-    .doc(convId)
-    .collection('messages')
-    .add(message);
+  const messagesRef = collection(getFirestore(), 'conversations', convId, 'messages');
+  const docRef = await addDoc(messagesRef, message);
 
-  await firestore().collection('conversations').doc(convId).update({
+  const convRef = doc(getFirestore(), 'conversations', convId);
+  const convSnap = await getDoc(convRef);
+  const participants = convSnap.exists() ? (convSnap.data()?.participants as string[] || []) : [];
+  
+  const unreadUpdates: Record<string, any> = {};
+  participants.forEach(p => {
+    if (p !== message.senderId) {
+      unreadUpdates[`unreadCounts.${p}`] = increment(1);
+    }
+  });
+
+  await updateDoc(convRef, {
     lastMessage: {
       senderId: message.senderId,
       type: message.type,
       encryptedContent: message.encryptedContent,
       nonce: message.nonce,
-      timestamp: firestore.FieldValue.serverTimestamp(),
+      timestamp: serverTimestamp(),
     },
+    ...unreadUpdates
   });
 
-  return ref.id;
+  return docRef.id;
 }
 
 export async function markMessagesRead(
@@ -126,18 +159,28 @@ export async function markMessagesRead(
   msgIds: string[],
   uid: string
 ): Promise<void> {
-  const batch = firestore().batch();
+  const batch = writeBatch(getFirestore());
+  
+  // Reset conversation unread count
+  const convRef = doc(getFirestore(), 'conversations', convId);
+  batch.update(convRef, {
+    [`unreadCounts.${uid}`]: 0
+  });
+
   msgIds.forEach((id) => {
-    const ref = firestore()
-      .collection('conversations')
-      .doc(convId)
-      .collection('messages')
-      .doc(id);
-    batch.update(ref, {
-      [`readBy.${uid}`]: firestore.FieldValue.serverTimestamp(),
+    const msgRef = doc(getFirestore(), 'conversations', convId, 'messages', id);
+    batch.update(msgRef, {
+      [`readBy.${uid}`]: serverTimestamp(),
     });
   });
   await batch.commit();
+}
+
+export async function resetUnreadCount(convId: string, uid: string): Promise<void> {
+  const convRef = doc(getFirestore(), 'conversations', convId);
+  await updateDoc(convRef, {
+    [`unreadCounts.${uid}`]: 0
+  });
 }
 
 export async function deleteMessageForMe(
@@ -145,29 +188,21 @@ export async function deleteMessageForMe(
   msgId: string,
   uid: string
 ): Promise<void> {
-  await firestore()
-    .collection('conversations')
-    .doc(convId)
-    .collection('messages')
-    .doc(msgId)
-    .update({ deletedFor: firestore.FieldValue.arrayUnion(uid) });
+  const msgRef = doc(getFirestore(), 'conversations', convId, 'messages', msgId);
+  await updateDoc(msgRef, { deletedFor: arrayUnion(uid) });
 }
 
 export async function deleteMessageForEveryone(
   convId: string,
   msgId: string
 ): Promise<void> {
-  await firestore()
-    .collection('conversations')
-    .doc(convId)
-    .collection('messages')
-    .doc(msgId)
-    .update({
-      deletedForEveryone: true,
-      encryptedContent: '',
-      nonce: '',
-      mediaItems: null,
-    });
+  const msgRef = doc(getFirestore(), 'conversations', convId, 'messages', msgId);
+  await updateDoc(msgRef, {
+    deletedForEveryone: true,
+    encryptedContent: '',
+    nonce: '',
+    mediaItems: null,
+  });
 }
 
 export async function addReaction(
@@ -176,12 +211,8 @@ export async function addReaction(
   uid: string,
   emoji: string
 ): Promise<void> {
-  await firestore()
-    .collection('conversations')
-    .doc(convId)
-    .collection('messages')
-    .doc(msgId)
-    .update({ [`reactions.${uid}`]: emoji });
+  const msgRef = doc(getFirestore(), 'conversations', convId, 'messages', msgId);
+  await updateDoc(msgRef, { [`reactions.${uid}`]: emoji });
 }
 
 // --- MEDIA UPLOAD ---
@@ -197,8 +228,8 @@ export async function uploadEncryptedMedia(
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  const ref = storage().ref(`media/${convId}/${fileName}`);
-  const task = ref.putFile(tempPath);
+  const storageRefPath = storageRef(getStorage(), `media/${convId}/${fileName}`);
+  const task = putFile(storageRefPath, tempPath);
 
   if (onProgress) {
     task.on('state_changed', (snapshot) => {
@@ -208,7 +239,7 @@ export async function uploadEncryptedMedia(
 
   await task;
   await FileSystem.deleteAsync(tempPath, { idempotent: true });
-  return await ref.getDownloadURL();
+  return await getDownloadURL(storageRefPath);
 }
 
 // --- TYPING ---
@@ -217,16 +248,12 @@ export async function setTypingIndicator(
   uid: string,
   isTyping: boolean
 ): Promise<void> {
-  const ref = firestore()
-    .collection('conversations')
-    .doc(convId)
-    .collection('typing')
-    .doc(uid);
+  const typingRef = doc(getFirestore(), 'conversations', convId, 'typing', uid);
 
   if (isTyping) {
-    await ref.set({ uid, timestamp: firestore.FieldValue.serverTimestamp() });
+    await setDoc(typingRef, { uid, timestamp: serverTimestamp() });
   } else {
-    await ref.delete();
+    await deleteDoc(typingRef);
   }
 }
 
@@ -235,20 +262,17 @@ export function subscribeToTyping(
   currentUid: string,
   onData: (typingUids: string[]) => void
 ): () => void {
-  return firestore()
-    .collection('conversations')
-    .doc(convId)
-    .collection('typing')
-    .onSnapshot((snap) => {
-      if (!snap || !snap.docs) {
-        onData([]);
-        return;
-      }
-      const uids = snap.docs
-        .map((d) => d.id)
-        .filter((id) => id !== currentUid);
-      onData(uids);
-    });
+  const q = collection(getFirestore(), 'conversations', convId, 'typing');
+  return onSnapshot(q, (snap) => {
+    if (!snap || !snap.docs) {
+      onData([]);
+      return;
+    }
+    const uids = snap.docs
+      .map((d) => d.id)
+      .filter((id) => id !== currentUid);
+    onData(uids);
+  });
 }
 
 // --- DIRECT CONVERSATION HELPERS ---
@@ -263,17 +287,19 @@ export async function addMemberToGroup(
   newMemberUid: string,
   encryptedKey: { ciphertext: string; nonce: string }
 ): Promise<void> {
-  await firestore().collection('conversations').doc(convId).update({
-    participants: firestore.FieldValue.arrayUnion(newMemberUid),
+  const convRef = doc(getFirestore(), 'conversations', convId);
+  await updateDoc(convRef, {
+    participants: arrayUnion(newMemberUid),
     [`encryptedGroupKeys.${newMemberUid}`]: encryptedKey,
   });
 }
 
 // --- AVATAR UPLOAD ---
 export async function uploadAvatar(uid: string, localUri: string): Promise<string> {
-  const ref = storage().ref(`avatars/${uid}/avatar.jpg`);
-  await ref.putFile(localUri);
-  const url = await ref.getDownloadURL();
-  await firestore().collection('users').doc(uid).update({ photoURL: url });
+  const avatarStorageRef = storageRef(getStorage(), `avatars/${uid}/avatar.jpg`);
+  await avatarStorageRef.putFile(localUri);
+  const url = await avatarStorageRef.getDownloadURL();
+  const userDocRef = doc(getFirestore(), 'users', uid);
+  await updateDoc(userDocRef, { photoURL: url });
   return url;
 }

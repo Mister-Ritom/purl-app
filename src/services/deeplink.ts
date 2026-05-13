@@ -34,7 +34,7 @@ function handleDeepLink(url: string): void {
     if (parsed.pathname.includes('chat') || parsed.hostname === 'chat') {
       const convId = parsed.searchParams.get('convId');
       if (convId) {
-        router.push(`/(app)/chats/${convId}`);
+        router.push(`/chats/${convId}`);
       }
       return;
     }

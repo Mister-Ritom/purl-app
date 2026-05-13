@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 import { Avatar } from '../../../src/components/common/Avatar';
 import { COLORS } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, collection, doc, query, where, orderBy, onSnapshot } from '@react-native-firebase/firestore';
 import { StatusItem } from '../../../src/types/status';
 import { UserProfile } from '../../../src/types/user';
 
@@ -25,19 +25,19 @@ export default function StatusScreen() {
   useEffect(() => {
     if (!user) return;
     // Load my statuses
-    const myUnsub = firestore()
-      .collection('statuses')
-      .doc(user.uid)
-      .collection('items')
-      .where('expiresAt', '>', new Date())
-      .orderBy('expiresAt', 'asc')
-      .onSnapshot((snap) => {
-        if (!snap || !snap.docs) {
-          setMyStatuses([]);
-          return;
-        }
-        setMyStatuses(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as StatusItem[]);
-      });
+    const q = query(
+      collection(getFirestore(), 'statuses', user.uid, 'items'),
+      where('expiresAt', '>', new Date()),
+      orderBy('expiresAt', 'asc')
+    );
+
+    const myUnsub = onSnapshot(q, (snap) => {
+      if (!snap || !snap.docs) {
+        setMyStatuses([]);
+        return;
+      }
+      setMyStatuses(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as StatusItem[]);
+    });
     return () => myUnsub();
   }, [user]);
 

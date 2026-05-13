@@ -6,9 +6,9 @@ export interface MediaItem {
   url: string;
   mimeType: string;
   nonce: string;
-  size?: number;
-  fileName?: string;
-  duration?: number;
+  size?: number | null;
+  fileName?: string | null;
+  duration?: number | null;
   localCacheUri?: string;
 }
 

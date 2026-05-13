@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { COLORS } from '../../../../src/utils/constants';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, collection, doc, query, where, orderBy, onSnapshot, getDoc } from '@react-native-firebase/firestore';
 import { Avatar } from '../../../../src/components/common/Avatar';
 
 const { width, height } = Dimensions.get('window');
@@ -18,25 +18,25 @@ export default function StatusViewScreen() {
     if (!uid) return;
 
     // Fetch user profile
-    firestore().collection('users').doc(uid as string).get().then(doc => {
-      setUserProfile(doc.data());
+    getDoc(doc(getFirestore(), 'users', uid as string)).then(docSnap => {
+      setUserProfile(docSnap.data());
     });
 
     // Fetch statuses
     const now = new Date();
-    const unsub = firestore()
-      .collection('statuses')
-      .doc(uid as string)
-      .collection('items')
-      .where('expiresAt', '>', now)
-      .orderBy('expiresAt', 'asc')
-      .onSnapshot(snap => {
-        if (snap) {
-          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setStatuses(list);
-          if (list.length === 0) router.back();
-        }
-      });
+    const q = query(
+      collection(getFirestore(), 'statuses', uid as string, 'items'),
+      where('expiresAt', '>', now),
+      orderBy('expiresAt', 'asc')
+    );
+
+    const unsub = onSnapshot(q, snap => {
+      if (snap) {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setStatuses(list);
+        if (list.length === 0) router.back();
+      }
+    });
 
     return unsub;
   }, [uid]);

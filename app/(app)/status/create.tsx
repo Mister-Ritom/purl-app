@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { COLORS } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, collection, doc, addDoc, serverTimestamp } from '@react-native-firebase/firestore';
 
 export default function CreateStatusScreen() {
   const { user } = useAuthStore();
@@ -18,16 +18,12 @@ export default function CreateStatusScreen() {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24);
 
-      await firestore()
-        .collection('statuses')
-        .doc(user.uid)
-        .collection('items')
-        .add({
-          type: 'text',
-          content: text.trim(),
-          createdAt: firestore.FieldValue.serverTimestamp(),
-          expiresAt: expiresAt,
-        });
+      await addDoc(collection(getFirestore(), 'statuses', user.uid, 'items'), {
+        type: 'text',
+        content: text.trim(),
+        createdAt: serverTimestamp(),
+        expiresAt: expiresAt,
+      });
 
       router.back();
     } catch (err) {

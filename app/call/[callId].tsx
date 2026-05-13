@@ -10,6 +10,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { RtcSurfaceView, ChannelProfileType, ClientRoleType } from 'react-native-agora';
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import { Platform } from 'react-native';
 import { useCallStore } from '../../src/store/callStore';
 import { useAuthStore } from '../../src/store/authStore';
 import { Avatar } from '../../src/components/common/Avatar';
@@ -22,7 +24,7 @@ import {
   muteVideo,
   setSpeakerphone,
 } from '../../src/services/agora';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, serverTimestamp, onSnapshot } from '@react-native-firebase/firestore';
 import { UserProfile } from '../../src/types/user';
 import { formatDuration } from '../../src/utils/formatTime';
 
@@ -50,33 +52,99 @@ export default function CallScreen() {
 
   useEffect(() => {
     loadCallAndJoin();
-    return () => { leaveCall(); reset(); };
+    
+    // Listen for call status changes (e.g., other user declined or ended)
+    const unsub = onSnapshot(doc(getFirestore(), 'calls', callId), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setActiveCall({ id: snapshot.id, ...data } as any);
+        if (data?.status === 'ended' || data?.status === 'declined') {
+          setCallStatus('ended');
+        } else if (data?.status === 'active') {
+          setCallStatus('active');
+        }
+      } else {
+        setCallStatus('ended');
+      }
+    });
+
+    return () => { 
+      unsub();
+      leaveCall(); 
+      reset(); 
+    };
   }, [callId]);
 
   useEffect(() => {
-    if (callStatus !== 'active') return;
+    if (callStatus === 'ended') {
+      const timer = setTimeout(() => router.back(), 2000);
+      return () => clearTimeout(timer);
+    }
+    // Only start timer if both local and remote are active
+    if (callStatus !== 'active' || activeCall?.status !== 'active') return;
     const timer = setInterval(() => setCallDuration((d) => d + 1), 1000);
     return () => clearInterval(timer);
-  }, [callStatus]);
+  }, [callStatus, activeCall?.status]);
 
   async function loadCallAndJoin() {
     if (!callId || !user) return;
     try {
-      const doc = await firestore().collection('calls').doc(callId).get();
-      if (!doc.exists()) { router.back(); return; }
-      const call = { id: doc.id, ...doc.data() } as any;
+      const callDocRef = doc(getFirestore(), 'calls', callId);
+      const callDocSnap = await getDoc(callDocRef);
+      if (!callDocSnap.exists()) { router.back(); return; }
+      const call = { id: callDocSnap.id, ...callDocSnap.data() } as any;
       setActiveCall(call);
 
       const otherUid = call.callerId === user.uid ? call.receiverIds[0] : call.callerId;
-      const userDoc = await firestore().collection('users').doc(otherUid).get();
-      if (userDoc.exists()) setOtherUser({ uid: otherUid, ...userDoc.data() } as UserProfile);
+      const userDocSnap = await getDoc(doc(getFirestore(), 'users', otherUid));
+      if (userDocSnap.exists()) setOtherUser({ uid: otherUid, ...userDocSnap.data() } as UserProfile);
+
+      // Request Permissions
+      if (Platform.OS === 'ios') {
+        await request(PERMISSIONS.IOS.MICROPHONE);
+        if (call.type === 'video') await request(PERMISSIONS.IOS.CAMERA);
+      } else {
+        await request(PERMISSIONS.ANDROID.RECORD_AUDIO);
+        if (call.type === 'video') await request(PERMISSIONS.ANDROID.CAMERA);
+      }
 
       setCallStatus('connecting');
       initAgoraEngine();
 
       const agoraUid = hashUidToNumber(user.uid);
-      await joinCall(callId, call.agoraToken, agoraUid, isVideo);
+      const isVideoCall = call.type === 'video';
+
+      let token = call.agoraToken;
+      // If we are the receiver, we should get our own token to be safe, 
+      // as tokens are UID-bound.
+      if (call.callerId !== user.uid) {
+        const { httpsCallable } = await import('@react-native-firebase/functions');
+        const { getFunctions } = await import('@react-native-firebase/functions');
+        const result = await httpsCallable(getFunctions(), 'generateAgoraToken')({
+          channelName: callId,
+          uid: user.uid
+        });
+        token = (result.data as any).token;
+      }
+
+      if (!token) throw new Error('No Agora token available');
+
+      await joinCall(callId, token, agoraUid, isVideoCall);
+      
+      if (call.callerId === user.uid) {
+        setCallStatus('ringing');
+      } else {
+        // If receiver, mark call as active in Firestore
+        if (call.status === 'ringing') {
+          await updateDoc(callDocRef, {
+            status: 'active',
+            startedAt: serverTimestamp(),
+          });
+        }
+        setCallStatus('active');
+      }
     } catch (err: any) {
+      console.error('[CallScreen] Load/Join error:', err);
       Alert.alert('Call Error', err.message ?? 'Could not connect.');
       router.back();
     }
@@ -84,9 +152,9 @@ export default function CallScreen() {
 
   const handleEndCall = async () => {
     leaveCall();
-    await firestore().collection('calls').doc(callId).update({
+    await updateDoc(doc(getFirestore(), 'calls', callId), {
       status: 'ended',
-      endedAt: firestore.FieldValue.serverTimestamp(),
+      endedAt: serverTimestamp(),
       duration: callDuration,
     }).catch(() => {});
     reset();

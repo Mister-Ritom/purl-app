@@ -1,9 +1,9 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { CACHE_DIR_NAME, MAX_IMAGE_DIMENSION, IMAGE_QUALITY } from './constants';
 
 export async function ensureCacheDir(subDir?: string): Promise<string> {
-  const dir = `${FileSystem.Paths.cache.uri}${CACHE_DIR_NAME}/${subDir ?? ''}`;
+  const dir = `${FileSystem.cacheDirectory}${CACHE_DIR_NAME}/${subDir ?? ''}`;
   const info = await FileSystem.getInfoAsync(dir);
   if (!info.exists) {
     await FileSystem.makeDirectoryAsync(dir, { intermediates: true });

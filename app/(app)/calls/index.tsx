@@ -12,7 +12,7 @@ import { Avatar } from '../../../src/components/common/Avatar';
 import { EmptyState } from '../../../src/components/common/EmptyState';
 import { COLORS } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, collection, query, where, orderBy, limit, onSnapshot, getDoc, doc } from '@react-native-firebase/firestore';
 import { Call } from '../../../src/types/call';
 import { UserProfile } from '../../../src/types/user';
 import { formatConversationTime, formatDuration } from '../../../src/utils/formatTime';
@@ -23,27 +23,29 @@ export default function CallsScreen() {
 
   useEffect(() => {
     if (!user) return;
-    const unsub = firestore()
-      .collection('calls')
-      .where('callerId', '==', user.uid)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .onSnapshot(async (snap) => {
-        if (!snap || !snap.docs) {
-          setCalls([]);
-          return;
-        }
-        const rawCalls = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Call[];
-        const enriched = await Promise.all(
-          rawCalls.map(async (c) => {
-            const otherUid = c.callerId === user.uid ? c.receiverIds[0] : c.callerId;
-            const doc = await firestore().collection('users').doc(otherUid).get();
-            const otherUser = doc.exists() ? ({ uid: otherUid, ...doc.data() } as UserProfile) : undefined;
-            return { ...c, otherUser };
-          })
-        );
-        setCalls(enriched);
-      });
+    const q = query(
+      collection(getFirestore(), 'calls'),
+      where('callerId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+
+    const unsub = onSnapshot(q, async (snap) => {
+      if (!snap || !snap.docs) {
+        setCalls([]);
+        return;
+      }
+      const rawCalls = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Call[];
+      const enriched = await Promise.all(
+        rawCalls.map(async (c) => {
+          const otherUid = c.callerId === user.uid ? c.receiverIds[0] : c.callerId;
+          const docSnap = await getDoc(doc(getFirestore(), 'users', otherUid));
+          const otherUser = docSnap.exists() ? ({ uid: otherUid, ...docSnap.data() } as UserProfile) : undefined;
+          return { ...c, otherUser };
+        })
+      );
+      setCalls(enriched);
+    });
     return () => unsub();
   }, [user]);
 

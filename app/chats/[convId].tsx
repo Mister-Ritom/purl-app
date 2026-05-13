@@ -12,14 +12,14 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Modal, ScrollView, Image as RNImage } from 'react-native';
-import { useAuthStore } from '../../../src/store/authStore';
-import { useChatStore } from '../../../src/store/chatStore';
-import { useMessages } from '../../../src/hooks/useMessages';
-import { useTypingIndicator } from '../../../src/hooks/useTypingIndicator';
-import { Avatar } from '../../../src/components/common/Avatar';
+import { useAuthStore } from '../../src/store/authStore';
+import { useChatStore } from '../../src/store/chatStore';
+import { useMessages } from '../../src/hooks/useMessages';
+import { useTypingIndicator } from '../../src/hooks/useTypingIndicator';
+import { Avatar } from '../../src/components/common/Avatar';
 import {
   sendMessage,
   markMessagesRead,
@@ -27,28 +27,32 @@ import {
   deleteMessageForEveryone,
   addReaction,
   uploadEncryptedMedia,
-} from '../../../src/services/firestore';
-import { Message, MediaItem } from '../../../src/types/message';
-import { Conversation } from '../../../src/types/conversation';
+  resetUnreadCount,
+} from '../../src/services/firestore';
+import { Message, MediaItem } from '../../src/types/message';
+import { Conversation } from '../../src/types/conversation';
 import {
   encryptMessage,
   decryptMessage,
   getSharedSecret,
   encryptFile,
   decryptGroupKey,
-} from '../../../src/services/encryption';
+} from '../../src/services/encryption';
+import * as Sharing from 'expo-sharing';
 import { useAudioPlayer, useAudioRecorder, RecordingPresets, AudioModule, AudioMode } from 'expo-audio';
 import { encodeBase64 } from 'tweetnacl-util';
-import { VideoMessage } from '../../../src/components/chat/VideoMessage';
-import { AudioMessage } from '../../../src/components/chat/AudioMessage';
-import { COLORS, DELETE_FOR_EVERYONE_LIMIT_MS } from '../../../src/utils/constants';
-import { formatMessageTime, formatDateSeparator, formatDuration } from '../../../src/utils/formatTime';
-import firestore from '@react-native-firebase/firestore';
+import { VideoMessage } from '../../src/components/chat/VideoMessage';
+import { AudioMessage } from '../../src/components/chat/AudioMessage';
+import { COLORS, DELETE_FOR_EVERYONE_LIMIT_MS } from '../../src/utils/constants';
+import { formatMessageTime, formatDateSeparator, formatDuration } from '../../src/utils/formatTime';
+import { getFirestore, doc, getDoc, onSnapshot, Timestamp, serverTimestamp } from '@react-native-firebase/firestore';
+import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { UserProfile } from '../../../src/types/user';
+import { UserProfile } from '../../src/types/user';
 
 export default function ConversationScreen() {
+  const insets = useSafeAreaInsets();
   const { convId } = useLocalSearchParams<{ convId: string }>();
   const { user, keyPair } = useAuthStore();
   const { 
@@ -64,10 +68,12 @@ export default function ConversationScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [activeKey, setActiveKey] = useState<Uint8Array | null>(null);
+  const [encryptionError, setEncryptionError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [uploadingProgress, setUploadingProgress] = useState<Record<string, number>>({});
   const [mediaToPreview, setMediaToPreview] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [captionText, setCaptionText] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const { messages, loading } = useMessages(convId!, conversation);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -77,12 +83,31 @@ export default function ConversationScreen() {
   // Load conversation + other user
   useEffect(() => {
     if (!convId || !user) return;
-    const unsub = firestore()
-      .collection('conversations')
-      .doc(convId)
-      .onSnapshot(async (doc) => {
-        if (!doc || !doc.exists()) return;
-        const data = { id: doc.id, ...doc.data() } as Conversation;
+    const unsub = onSnapshot(doc(getFirestore(), 'conversations', convId), async (docSnap) => {
+        if (!docSnap || !docSnap.exists()) {
+          console.warn('[Chat:Snapshot] Document does not exist — creating it now...');
+          // Auto-create the conversation if it doesn't exist yet
+          try {
+            const { setDoc: fsSetDoc, serverTimestamp: fsST } = await import('@react-native-firebase/firestore');
+            // convId format: direct_{uidA}_{uidB} — extract the other uid by removing our own
+            const withoutPrefix = convId.replace('direct_', '');
+            const otherUid = withoutPrefix.replace(user.uid, '').replace(/^_|_$/, '');
+            const participants = [user.uid, otherUid].filter(Boolean);
+            await fsSetDoc(doc(getFirestore(), 'conversations', convId), {
+              participants,
+              isGroup: false,
+              createdAt: fsST(),
+              updatedAt: fsST(),
+              lastMessage: null,
+              inviteKeyUsed: 'self-healed',
+            });
+            console.log('[Chat:Snapshot] ✅ Conversation created with participants:', participants);
+          } catch (err) {
+            console.error('[Chat:Snapshot] ❌ Failed to create conversation:', err);
+          }
+          return;
+        }
+        const data = { id: docSnap.id, ...docSnap.data() } as Conversation;
         setConversation(data);
 
         if (data.isGroup) {
@@ -94,8 +119,8 @@ export default function ConversationScreen() {
               // Try admins to find the one who encrypted it
               const admins = data.admins || [];
               for (const adminUid of admins) {
-                const adminDoc = await firestore().collection('users').doc(adminUid).get();
-                const adminData = adminDoc.data();
+                const adminDocSnap = await getDoc(doc(getFirestore(), 'users', adminUid));
+                const adminData = adminDocSnap.data();
                 if (adminData?.publicKey) {
                   try {
                     gKey = decryptGroupKey(myEncKey.ciphertext, myEncKey.nonce, adminData.publicKey, keyPair.privateKey) || undefined;
@@ -113,22 +138,41 @@ export default function ConversationScreen() {
           if (gKey) setActiveKey(gKey);
         } else {
           const otherUid = data.participants.find((p) => p !== user.uid);
+        
           if (otherUid) {
-            const userDoc = await firestore().collection('users').doc(otherUid).get();
-            if (userDoc.exists()) {
-              const other = { uid: otherUid, ...userDoc.data() } as UserProfile;
+            const userDocSnap = await getDoc(doc(getFirestore(), 'users', otherUid));
+            if (userDocSnap.exists()) {
+              const other = { uid: otherUid, ...userDocSnap.data() } as UserProfile;
               setOtherUser(other);
 
               // Compute or retrieve shared secret
               if (keyPair) {
-                let secret = getSharedSecretFromCache(otherUid);
-                if (!secret) {
-                  secret = getSharedSecret(keyPair.privateKey, otherUid, other.publicKey);
-                  cacheSharedSecret(otherUid, secret);
+                if (!other.publicKey) {
+                  setEncryptionError('This user has not set up encryption keys yet. Messages cannot be sent.');
+                  console.warn('[Chat:Encryption] ❌ Other user has NO publicKey — uid:', otherUid);
+                } else {
+                  try {
+                    let secret = getSharedSecretFromCache(otherUid);
+                    if (!secret) {
+                      secret = getSharedSecret(keyPair.privateKey, otherUid, other.publicKey);
+                      cacheSharedSecret(otherUid, secret);
+                    }
+                    setActiveKey(secret);
+                    setEncryptionError(null);
+                  } catch (e) {
+                    setEncryptionError('Failed to set up encryption. Try reopening the chat.');
+                    console.error('[Chat:Encryption] ❌ Failed to compute shared secret:', e);
+                  }
                 }
-                setActiveKey(secret);
+              } else {
+                console.warn('[Chat:Encryption] ❌ keyPair is NULL — cannot compute secret');
+                setEncryptionError('Your encryption keys are not loaded. Try logging out and back in.');
               }
+            } else {
+              console.warn('[Chat:OtherUser] ❌ Other user doc does not exist in Firestore — uid:', otherUid);
             }
+          } else {
+            console.warn('[Chat:DM] ❌ Could not find otherUid in participants:', data.participants);
           }
         }
       });
@@ -136,6 +180,13 @@ export default function ConversationScreen() {
   }, [convId, user, keyPair]);
 
   const sendTextMessage = useCallback(async () => {
+    console.log('[Send] Guards —', {
+      hasText: !!inputText.trim(),
+      hasKey: !!activeKey,
+      hasUser: !!user,
+      hasConvId: !!convId,
+      sending,
+    });
     if (!inputText.trim() || !activeKey || !user || !convId || sending) return;
     const text = inputText.trim();
     setInputText('');
@@ -153,7 +204,7 @@ export default function ConversationScreen() {
         readBy: {},
         deletedFor: [],
         deletedForEveryone: false,
-        timestamp: firestore.FieldValue.serverTimestamp() as any,
+        timestamp: serverTimestamp() as any,
       });
     } catch (err) {
       Alert.alert('Send failed', 'Message could not be sent.');
@@ -186,6 +237,7 @@ export default function ConversationScreen() {
   const sendMediaWithCaption = async () => {
     const assets = [...mediaToPreview];
     const caption = captionText.trim();
+    console.log('[Media] Starting send — Assets:', assets.length, 'Caption:', caption);
     setMediaToPreview([]);
     setCaptionText('');
     const tempId = `temp_${Date.now()}`;
@@ -206,7 +258,7 @@ export default function ConversationScreen() {
           size: a.fileSize,
           duration: a.duration ? Math.floor(a.duration / 1000) : undefined,
         })),
-        timestamp: firestore.Timestamp.now() as any,
+        timestamp: Timestamp.now() as any,
         reactions: {},
         readBy: {},
         deletedFor: [],
@@ -219,23 +271,26 @@ export default function ConversationScreen() {
       
       for (let i = 0; i < assets.length; i++) {
         const asset = assets[i];
+        console.log(`[Media] Processing item ${i} — URI:`, asset.uri);
         const { encryptedBytes, nonce } = await encryptFile(activeKey!, asset.uri);
-        const fileName = `${Date.now()}_${user!.uid}_${i}.enc`;
+        console.log(`[Media] Item ${i} encrypted. Uploading...`);
         
+        const fileName = `${Date.now()}_${user!.uid}_${i}.enc`;
         const url = await uploadEncryptedMedia(convId!, fileName, encryptedBytes, (p) => {
-          // Track overall or per-item progress? Let's do per-item for now in a simple map
           setUploadingProgress(prev => ({ ...prev, [`${tempId}_${i}`]: p }));
         });
+        console.log(`[Media] Item ${i} upload complete. URL:`, url);
 
         uploadedItems.push({
           url,
           mimeType: asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
           nonce: encodeBase64(nonce),
-          size: asset.fileSize,
-          duration: asset.duration ? Math.floor(asset.duration / 1000) : undefined,
+          size: asset.fileSize ?? null,
+          duration: asset.duration ? Math.floor(asset.duration / 1000) : null,
         });
       }
       
+      console.log('[Media] All items uploaded. Sending Firestore message...');
       const { ciphertext: encContent, nonce: encNonce } = encryptMessage(activeKey!, caption || 'media');
 
       await sendMessage(convId!, {
@@ -248,14 +303,26 @@ export default function ConversationScreen() {
         readBy: {},
         deletedFor: [],
         deletedForEveryone: false,
-        timestamp: firestore.FieldValue.serverTimestamp() as any,
+        timestamp: serverTimestamp() as any,
+      });
+      
+      console.log('[Media] Firestore message sent successfully.');
+      useChatStore.getState().updateMessage(convId!, tempId, { isOptimistic: false });
+      
+      // Clear progress after success
+      setUploadingProgress(prev => {
+        const next = { ...prev };
+        assets.forEach((_, i) => delete next[`${tempId}_${i}`]);
+        return next;
       });
 
-      useChatStore.getState().updateMessage(convId!, tempId, { isOptimistic: false });
     } catch (err) {
+      console.error('[Media] ❌ Sending failed:', err);
+      Alert.alert('Send failed', 'Media could not be sent.');
       useChatStore.getState().updateMessage(convId!, tempId, { isError: true });
     }
   };
+
 
   const pickAndSendDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
@@ -278,7 +345,7 @@ export default function ConversationScreen() {
           localCacheUri: file.uri,
           size: file.size,
         }],
-        timestamp: firestore.Timestamp.now() as any,
+        timestamp: Timestamp.now() as any,
         reactions: {},
         readBy: {},
         deletedFor: [],
@@ -310,7 +377,7 @@ export default function ConversationScreen() {
         readBy: {},
         deletedFor: [],
         deletedForEveryone: false,
-        timestamp: firestore.FieldValue.serverTimestamp() as any,
+        timestamp: serverTimestamp() as any,
       });
 
       // Cleanup
@@ -318,6 +385,31 @@ export default function ConversationScreen() {
     } catch {
       useChatStore.getState().updateMessage(convId, tempId, { isError: true });
       Alert.alert('Upload failed', 'Could not send document.');
+    }
+  };
+
+  const openDocument = async (uri: string, fileName?: string) => {
+    try {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: undefined,
+          dialogTitle: fileName || 'Open Document',
+        });
+      }
+    } catch (e) {
+      console.error('Error opening document:', e);
+      Alert.alert('Error', 'Could not open the document.');
+    }
+  };
+
+  const shareMedia = async (uri: string) => {
+    try {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      }
+    } catch (e) {
+      console.error('[ConversationScreen] Sharing failed:', e);
+      Alert.alert('Error', 'Could not share this file.');
     }
   };
 
@@ -361,7 +453,7 @@ export default function ConversationScreen() {
           localCacheUri: uri,
           duration: Math.floor(recorder.currentTime / 1000),
         }],
-        timestamp: firestore.Timestamp.now() as any,
+        timestamp: Timestamp.now() as any,
         reactions: {},
         readBy: {},
         deletedFor: [],
@@ -393,7 +485,7 @@ export default function ConversationScreen() {
         readBy: {},
         deletedFor: [],
         deletedForEveryone: false,
-        timestamp: firestore.FieldValue.serverTimestamp() as any,
+        timestamp: serverTimestamp() as any,
       });
       useChatStore.getState().updateMessage(convId, tempId, { isOptimistic: false });
     } catch (err) {
@@ -409,11 +501,21 @@ export default function ConversationScreen() {
       isOwn &&
       msg.timestamp?.toDate &&
       Date.now() - msg.timestamp.toDate().getTime() < DELETE_FOR_EVERYONE_LIMIT_MS;
+    const hasMedia = msg.mediaItems && msg.mediaItems.length > 0 && msg.mediaItems.some(i => i.localCacheUri);
 
     const options = [
       { text: 'Copy Text', onPress: () => {} },
       { text: 'Delete for Me', onPress: () => deleteMessageForMe(convId!, msg.id, user.uid) },
     ];
+    if (hasMedia) {
+      options.push({
+        text: 'Share/Save',
+        onPress: () => {
+          const item = msg.mediaItems?.find(i => i.localCacheUri);
+          if (item?.localCacheUri) shareMedia(item.localCacheUri);
+        }
+      });
+    }
     if (canDeleteForEveryone) {
       options.push({
         text: 'Delete for Everyone',
@@ -463,48 +565,94 @@ export default function ConversationScreen() {
               </Text>
             ) : item.type === 'media' ? (
               <View style={styles.mediaGrid}>
-                {item.mediaItems?.map((m, idx) => (
-                  <View key={idx} style={styles.mediaItemContainer}>
-                    {m.mimeType.startsWith('image/') ? (
-                      <Image
-                        source={{ uri: m.localCacheUri ?? m.url }}
-                        style={[styles.mediaImage, item.isOptimistic && styles.blurredMedia]}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <VideoMessage uri={m.localCacheUri ?? m.url} isOwn={isOwn} />
-                    )}
-                    {item.isOptimistic && (
-                      <View style={styles.uploadOverlay}>
-                        <ActivityIndicator size="small" color="#fff" />
-                        <Text style={styles.progressText}>
-                          {Math.round((uploadingProgress[`${item.id}_${idx}`] || 0) * 100)}%
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                ))}
+                {item.mediaItems?.map((m, idx) => {
+                  const isReady = !!m.localCacheUri;
+                  return (
+                    <TouchableOpacity 
+                      key={idx} 
+                      style={styles.mediaItemContainer}
+                      onPress={() => isReady && m.mimeType.startsWith('image/') && setSelectedImage(m.localCacheUri!)}
+                      disabled={!isReady}
+                    >
+                      {m.mimeType.startsWith('image/') ? (
+                        <View>
+                          <Image
+                            source={{ uri: m.localCacheUri ?? m.url }}
+                            style={[styles.mediaImage, (item.isOptimistic || !isReady) && styles.blurredMedia]}
+                            resizeMode="cover"
+                          />
+                          {!isReady && !item.isOptimistic && (
+                            <View style={styles.decryptOverlay}>
+                              <ActivityIndicator size="small" color="#fff" />
+                              <Text style={styles.decryptText}>Decrypting...</Text>
+                            </View>
+                          )}
+                        </View>
+                      ) : (
+                        <View>
+                          {isReady ? (
+                            <VideoMessage uri={m.localCacheUri!} isOwn={isOwn} />
+                          ) : (
+                            <View style={styles.videoPlaceholder}>
+                              <ActivityIndicator size="small" color="#fff" />
+                              <Text style={styles.decryptText}>{item.isOptimistic ? 'Uploading...' : 'Decrypting Video...'}</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                      {item.isOptimistic && (
+                        <View style={styles.uploadOverlay}>
+                          <ActivityIndicator size="small" color="#fff" />
+                          <Text style={styles.progressText}>
+                            {Math.round((uploadingProgress[`${item.id}_${idx}`] || 0) * 100)}%
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
                 {item.decryptedContent && item.decryptedContent !== 'media' && (
                   <Text style={styles.captionText}>{item.decryptedContent}</Text>
                 )}
               </View>
             ) : item.type === 'document' ? (
-              <View style={[styles.docContainer, item.isOptimistic && styles.blurredMedia]}>
+              <TouchableOpacity 
+                style={[styles.docContainer, item.isOptimistic && styles.blurredMedia]}
+                onPress={() => {
+                  const doc = item.mediaItems?.[0];
+                  if (doc?.localCacheUri) {
+                    openDocument(doc.localCacheUri, doc.fileName || undefined);
+                  }
+                }}
+                disabled={!item.mediaItems?.[0]?.localCacheUri}
+              >
                 <Text style={styles.docIcon}>📄</Text>
                 <View style={styles.flex}>
                   <Text style={styles.docName} numberOfLines={2}>
                     {item.decryptedContent ?? item.mediaItems?.[0]?.fileName ?? 'Document'}
                   </Text>
+                  {!item.mediaItems?.[0]?.localCacheUri && !item.isOptimistic && (
+                    <Text style={styles.decryptTextSmall}>Decrypting...</Text>
+                  )}
                   {item.isOptimistic && (
                     <Text style={styles.progressText}>
                       Uploading {Math.round((uploadingProgress[item.id] || 0) * 100)}%
                     </Text>
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             ) : item.type === 'audio' ? (
               <View>
-                <AudioMessage uri={item.mediaItems?.[0]?.localCacheUri ?? item.mediaItems?.[0]?.url!} isOwn={isOwn} />
+                {item.mediaItems?.[0]?.localCacheUri ? (
+                  <AudioMessage uri={item.mediaItems[0].localCacheUri} isOwn={isOwn} />
+                ) : (
+                  <View style={styles.audioPlaceholder}>
+                    <ActivityIndicator size="small" color={isOwn ? '#fff' : COLORS.primary} />
+                    <Text style={[styles.decryptTextSmall, { marginLeft: 8 }, isOwn ? { color: '#fff' } : { color: COLORS.textSecondary }]}>
+                      {item.isOptimistic ? 'Uploading...' : 'Decrypting voice...'}
+                    </Text>
+                  </View>
+                )}
                 {item.isOptimistic && (
                   <View style={styles.uploadOverlay}>
                     <ActivityIndicator size="small" color="#fff" />
@@ -533,10 +681,10 @@ export default function ConversationScreen() {
   const isOnline = otherUser?.isOnline;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <TouchableOpacity
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 8 }]}
         onPress={() => otherUser && router.push(`/profile/${otherUser.uid}`)}
       >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -555,8 +703,7 @@ export default function ConversationScreen() {
             onPress={async () => {
               if (!otherUser || sending) return;
               try {
-                const initiateCall = firestore().app.functions().httpsCallable('initiateCall');
-                const result = await initiateCall({ receiverIds: [otherUser.uid], type: 'voice' });
+                const result = await httpsCallable(getFunctions(), 'initiateCall')({ receiverIds: [otherUser.uid], type: 'voice' });
                 const { callId } = result.data as { callId: string };
                 router.push({ pathname: `/call/${callId}`, params: { type: 'voice' } } as any);
               } catch (err) {
@@ -571,8 +718,7 @@ export default function ConversationScreen() {
             onPress={async () => {
               if (!otherUser || sending) return;
               try {
-                const initiateCall = firestore().app.functions().httpsCallable('initiateCall');
-                const result = await initiateCall({ receiverIds: [otherUser.uid], type: 'video' });
+                const result = await httpsCallable(getFunctions(), 'initiateCall')({ receiverIds: [otherUser.uid], type: 'video' });
                 const { callId } = result.data as { callId: string };
                 router.push({ pathname: `/call/${callId}`, params: { type: 'video' } } as any);
               } catch (err) {
@@ -591,6 +737,11 @@ export default function ConversationScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
+        {encryptionError && (
+          <View style={styles.encryptionBanner}>
+            <Text style={styles.encryptionBannerText}>🔒 {encryptionError}</Text>
+          </View>
+        )}
         {loading ? (
           <ActivityIndicator style={styles.loader} color={COLORS.primary} />
         ) : (
@@ -608,7 +759,7 @@ export default function ConversationScreen() {
         )}
 
         {/* Input Bar */}
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { paddingBottom: insets.bottom }]}>
           <TouchableOpacity style={styles.attachBtn} onPress={pickAndSendMedia}>
             <Text style={styles.attachIcon}>⊕</Text>
           </TouchableOpacity>
@@ -657,7 +808,7 @@ export default function ConversationScreen() {
 
       {/* Media Preview Modal */}
       <Modal visible={mediaToPreview.length > 0} animationType="slide">
-        <SafeAreaView style={styles.previewModal}>
+        <View style={[styles.previewModal, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           <View style={styles.previewHeader}>
             <TouchableOpacity onPress={() => setMediaToPreview([])}>
               <Text style={styles.previewClose}>Cancel</Text>
@@ -685,15 +836,47 @@ export default function ConversationScreen() {
               <Text style={styles.previewSendIcon}>▶</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+
+      {/* Image Fullscreen Modal */}
+      <Modal visible={!!selectedImage} transparent animationType="fade">
+        <View style={styles.fullscreenContainer}>
+          <TouchableOpacity 
+            style={styles.fullscreenClose} 
+            onPress={() => setSelectedImage(null)}
+          >
+            <Text style={styles.fullscreenCloseText}>✕</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.fullscreenShare} 
+            onPress={() => selectedImage && shareMedia(selectedImage)}
+          >
+            <Text style={styles.fullscreenCloseText}>⎙</Text>
+          </TouchableOpacity>
+          {selectedImage && (
+            <RNImage 
+              source={{ uri: selectedImage }} 
+              style={styles.fullscreenImage} 
+              resizeMode="contain" 
+            />
+          )}
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
+  encryptionBanner: {
+    backgroundColor: '#7c2d12',
+    padding: 10,
+    alignItems: 'center',
+  },
+  encryptionBannerText: { color: '#fca5a5', fontSize: 13, textAlign: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -725,10 +908,9 @@ const styles = StyleSheet.create({
   ownWrapper: { alignItems: 'flex-end' },
   theirWrapper: { alignItems: 'flex-start' },
   bubble: {
-    maxWidth: '78%',
+    padding: 10,
     borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    maxWidth: '78%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.15,
@@ -740,28 +922,67 @@ const styles = StyleSheet.create({
   ownText: { color: '#fff' },
   theirText: { color: COLORS.text },
   deletedText: { fontSize: 14, color: COLORS.textMuted, fontStyle: 'italic' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
   msgTime: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
   readReceipt: { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
-  mediaGrid: { gap: 4 },
-  mediaItemContainer: { borderRadius: 12, overflow: 'hidden' },
-  mediaImage: { width: 200, height: 200, borderRadius: 12 },
+  mediaGrid: { width: 240, gap: 4 },
+  mediaItemContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 4,
+    backgroundColor: COLORS.surface,
+  },
+  mediaImage: { width: '100%', height: 200, borderRadius: 12 },
   blurredMedia: { opacity: 0.5 },
   uploadOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 12,
   },
+  decryptOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  decryptText: { color: '#fff', fontSize: 12, marginTop: 4 },
+  decryptTextSmall: { color: COLORS.textSecondary, fontSize: 11, marginTop: 2 },
   progressText: { color: '#fff', fontSize: 12, fontWeight: '700', marginTop: 4 },
-  captionText: { color: '#fff', fontSize: 14, marginTop: 8, paddingHorizontal: 4 },
-  docContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 200 },
+  captionText: { color: '#fff', marginTop: 8, fontSize: 14, paddingHorizontal: 4 },
+  docContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    minWidth: 150,
+    maxWidth: 200,
+    gap: 8,
+  },
   docIcon: { fontSize: 28 },
-  docName: { fontSize: 13, color: '#fff', flex: 1 },
-  audioContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  audioIcon: { fontSize: 20 },
-  audioText: { fontSize: 13, color: '#fff' },
+  docName: { color: '#fff', fontSize: 13, flex: 1 },
+  audioPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    minWidth: 150,
+  },
+  videoPlaceholder: {
+    width: 240,
+    height: 180,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -833,4 +1054,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   previewSendIcon: { color: '#fff', fontSize: 18 },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  fullscreenCloseText: {
+    color: '#fff',
+    fontSize: 24,
+  },
+  fullscreenShare: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    padding: 10,
+  },
 });
+

@@ -32,7 +32,7 @@ export function initAgoraEngine(): IRtcEngine {
   });
 
   engine.addListener('onJoinChannelSuccess', (connection, elapsed) => {
-    useCallStore.getState().setCallStatus('active');
+    // console.log('Successfully joined channel');
   });
 
   engine.addListener('onLeaveChannel', (connection, stats) => {

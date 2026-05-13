@@ -18,7 +18,7 @@ import { EmptyState } from '../../../src/components/common/EmptyState';
 import { COLORS } from '../../../src/utils/constants';
 import { Conversation } from '../../../src/types/conversation';
 import { decryptMessage, decryptWithGroupKey } from '../../../src/services/encryption';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { UserProfile } from '../../../src/types/user';
 
 export default function ChatListScreen() {
@@ -40,8 +40,8 @@ export default function ChatListScreen() {
         if (!conv.isGroup) {
           const otherUid = conv.participants.find((p) => p !== user.uid);
           if (otherUid) {
-            const doc = await firestore().collection('users').doc(otherUid).get();
-            if (doc.exists()) otherUser = { uid: otherUid, ...doc.data() } as UserProfile;
+            const userDocSnap = await getDoc(doc(getFirestore(), 'users', otherUid));
+            if (userDocSnap.exists()) otherUser = { uid: otherUid, ...userDocSnap.data() } as UserProfile;
           }
         }
 
@@ -83,6 +83,7 @@ export default function ChatListScreen() {
     const displayName = item.isGroup
       ? item.groupName ?? 'Group'
       : item.otherUser?.displayName ?? item.otherUser?.username ?? 'Unknown';
+    const unreadCount = item.unreadCounts?.[user?.uid ?? ''] ?? 0;
 
     return (
       <UserListItem
@@ -90,9 +91,9 @@ export default function ChatListScreen() {
         title={displayName}
         subtitle={item.preview}
         timestamp={item.lastMessage?.timestamp}
-        unreadCount={item.unreadCount}
+        unreadCount={unreadCount}
         isOnline={item.otherUser?.isOnline}
-        onPress={() => router.push(`/(app)/chats/${item.id}`)}
+        onPress={() => router.push(`/chats/${item.id}`)}
       />
     );
   };

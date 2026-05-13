@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, collection, query, where, limit, getDocs } from '@react-native-firebase/firestore';
 import { Avatar } from '../../src/components/common/Avatar';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { COLORS } from '../../src/utils/constants';
@@ -19,7 +19,7 @@ import { UserProfile } from '../../src/types/user';
 const DEBOUNCE = 300;
 
 export default function SearchScreen() {
-  const [query, setQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<UserProfile[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -31,12 +31,13 @@ export default function SearchScreen() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const clean = q.toLowerCase().trim().replace('@', '');
-      const snap = await firestore()
-        .collection('users')
-        .where('username', '>=', clean)
-        .where('username', '<=', clean + '\uf8ff')
-        .limit(20)
-        .get();
+      const usersQuery = query(
+        collection(getFirestore(), 'users'),
+        where('username', '>=', clean),
+        where('username', '<=', clean + '\uf8ff'),
+        limit(20)
+      );
+      const snap = await getDocs(usersQuery);
       const users = snap.docs.map((d) => ({ uid: d.id, ...d.data() })) as UserProfile[];
       setResults(users);
       setSearching(false);
@@ -50,16 +51,16 @@ export default function SearchScreen() {
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={styles.input}
-          value={query}
-          onChangeText={(t) => { setQuery(t); doSearch(t); }}
+          value={searchQuery}
+          onChangeText={(t) => { setSearchQuery(t); doSearch(t); }}
           placeholder="Search by username..."
           placeholderTextColor={COLORS.textMuted}
           autoFocus
           autoCapitalize="none"
           autoCorrect={false}
         />
-        {query ? (
-          <TouchableOpacity onPress={() => { setQuery(''); setResults([]); setSearched(false); }}>
+        {searchQuery ? (
+          <TouchableOpacity onPress={() => { setSearchQuery(''); setResults([]); setSearched(false); }}>
             <Text style={styles.clearBtn}>✕</Text>
           </TouchableOpacity>
         ) : null}
@@ -68,7 +69,7 @@ export default function SearchScreen() {
       {searching ? (
         <ActivityIndicator style={styles.loader} color={COLORS.primary} />
       ) : searched && results.length === 0 ? (
-        <EmptyState icon="👀" title={`No user found for "@${query}"`} subtitle="Try a different username." />
+        <EmptyState icon="👀" title={`No user found for "@${searchQuery}"`} subtitle="Try a different username." />
       ) : (
         <FlatList
           data={results}

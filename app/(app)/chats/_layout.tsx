@@ -12,7 +12,6 @@ export default function ChatsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Purl', headerShown: true }} />
-      <Stack.Screen name="[convId]" options={{ headerShown: false }} />
     </Stack>
   );
 }

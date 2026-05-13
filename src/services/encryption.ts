@@ -3,7 +3,7 @@ import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-ut
 import * as Keychain from 'react-native-keychain';
 import { createMMKV } from 'react-native-mmkv';
 import * as FileSystem from 'expo-file-system/legacy';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc } from '@react-native-firebase/firestore';
 import * as crypto from 'expo-crypto';
 import { KEYCHAIN_SERVICE_ENCRYPTION, MMKV_INSTANCE_ID } from '../utils/constants';
 
@@ -46,7 +46,16 @@ export async function getOrCreateKeyPair(uid: string): Promise<KeyPair> {
     accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
   });
 
-  await firestore().collection('users').doc(uid).set({ publicKey: pubKeyB64 }, { merge: true });
+  try {
+    const userDocRef = doc(getFirestore(), 'users', uid);
+    const userDocSnap = await getDoc(userDocRef);
+    // Only write if no publicKey exists yet — never overwrite to avoid destroying old chats
+    if (!userDocSnap.exists() || !userDocSnap.data()?.publicKey) {
+      await setDoc(userDocRef, { publicKey: pubKeyB64 }, { merge: true });
+    }
+  } catch (error) {
+    console.error('[getOrCreateKeyPair] Failed to sync public key to Firestore:', error);
+  }
 
   return { publicKey: keyPair.publicKey, privateKey: keyPair.secretKey };
 }
