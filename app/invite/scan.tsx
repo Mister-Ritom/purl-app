@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { View, Text, useThemeColor } from '../../src/components/Themed';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -19,7 +18,6 @@ import {
   Timestamp, 
 } from '@react-native-firebase/firestore';
 import { useAuthStore } from '../../src/store/authStore';
-import { COLORS } from '../../src/utils/constants';
 import { validateInviteToken, formatToken } from '../../src/utils/generateKey';
 
 export default function ScanScreen() {
@@ -142,19 +140,24 @@ export default function ScanScreen() {
     }
   };
 
+  const primary = useThemeColor({}, 'primary');
+  const surface = useThemeColor({}, 'surfaceElevated');
+  const border = useThemeColor({}, 'border');
+  const textMuted = useThemeColor({}, 'textSecondary');
+
   if (!permission) {
     return <View style={styles.container} />;
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Scan QR Code</Text>
-      <Text style={styles.subtitle}>Scan an invite QR code or enter the key manually.</Text>
+      <Text style={styles.title} type="text">Scan QR Code</Text>
+      <Text style={styles.subtitle} type="textSecondary">Scan an invite QR code or enter the key manually.</Text>
 
       {!permission.granted ? (
-        <View style={styles.noPerm}>
-          <Text style={styles.noPermText}>Camera permission required to scan QR codes.</Text>
-          <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
+        <View style={[styles.noPerm, { backgroundColor: surface }]}>
+          <Text style={styles.noPermText} type="textSecondary">Camera permission required to scan QR codes.</Text>
+          <TouchableOpacity style={[styles.grantBtn, { backgroundColor: primary }]} onPress={requestPermission}>
             <Text style={styles.grantBtnText}>Grant Permission</Text>
           </TouchableOpacity>
         </View>
@@ -168,31 +171,31 @@ export default function ScanScreen() {
               barcodeTypes: ['qr'],
             }}
           />
-          <View style={styles.scanFrame} />
+          <View style={[styles.scanFrame, { borderColor: primary }]} />
         </View>
       )}
 
       {status ? (
-        <View style={styles.statusBox}>
-          {redeeming && <ActivityIndicator color={COLORS.primary} />}
+        <View style={[styles.statusBox, { backgroundColor: surface }]}>
+          {redeeming && <ActivityIndicator color={primary} />}
           <Text style={styles.statusText}>{status}</Text>
         </View>
       ) : null}
 
       <View style={styles.manualSection}>
-        <Text style={styles.manualLabel}>Or enter key manually:</Text>
+        <Text style={styles.manualLabel} type="textSecondary">Or enter key manually:</Text>
         <View style={styles.manualRow}>
           <TextInput
-            style={styles.manualInput}
+            style={[styles.manualInput, { backgroundColor: surface, borderColor: border, color: useThemeColor({}, 'text') }]}
             value={manualToken}
             onChangeText={(t) => setManualToken(t.toUpperCase())}
             placeholder="XXXX-XXXX-XXXX"
-            placeholderTextColor={COLORS.textMuted}
+            placeholderTextColor={textMuted}
             autoCapitalize="characters"
             maxLength={14}
           />
           <TouchableOpacity
-            style={[styles.redeemBtn, (!manualToken || redeeming) && styles.btnDisabled]}
+            style={[styles.redeemBtn, { backgroundColor: primary }, (!manualToken || redeeming) && styles.btnDisabled]}
             onPress={() => redeemToken(manualToken)}
             disabled={!manualToken || redeeming}
           >
@@ -202,8 +205,8 @@ export default function ScanScreen() {
       </View>
 
       {scanned && !redeeming && (
-        <TouchableOpacity style={styles.retryBtn} onPress={() => { setScanned(false); setStatus(''); }}>
-          <Text style={styles.retryText}>Tap to scan again</Text>
+        <TouchableOpacity style={[styles.retryBtn, { backgroundColor: surface }]} onPress={() => { setScanned(false); setStatus(''); }}>
+          <Text style={[styles.retryText, { color: primary }]}>Tap to scan again</Text>
         </TouchableOpacity>
       )}
     </SafeAreaView>
@@ -211,32 +214,32 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 20 },
-  title: { fontSize: 24, fontWeight: '800', color: COLORS.text, marginBottom: 6 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 20 },
+  container: { flex: 1, padding: 20 },
+  title: { fontSize: 24, fontWeight: '800', marginBottom: 6 },
+  subtitle: { fontSize: 14, marginBottom: 20 },
   scannerContainer: { height: 280, borderRadius: 20, overflow: 'hidden', position: 'relative' },
   scanner: { flex: 1 },
   scanFrame: {
     position: 'absolute', top: '15%', left: '15%', right: '15%', bottom: '15%',
-    borderWidth: 2, borderColor: COLORS.primary, borderRadius: 16,
+    borderWidth: 2, borderRadius: 16,
   },
-  noPerm: { height: 280, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceElevated, borderRadius: 20, padding: 20 },
-  noPermText: { color: COLORS.textSecondary, textAlign: 'center', fontSize: 14, marginBottom: 20 },
-  grantBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  noPerm: { height: 280, alignItems: 'center', justifyContent: 'center', borderRadius: 20, padding: 20 },
+  noPermText: { textAlign: 'center', fontSize: 14, marginBottom: 20 },
+  grantBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   grantBtnText: { color: '#fff', fontWeight: '600' },
-  statusBox: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 },
-  statusText: { color: COLORS.text, fontSize: 15, flex: 1 },
+  statusBox: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 16, marginTop: 16 },
+  statusText: { fontSize: 15, flex: 1 },
   manualSection: { marginTop: 24 },
-  manualLabel: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 10, fontWeight: '600' },
+  manualLabel: { fontSize: 13, marginBottom: 10, fontWeight: '600' },
   manualRow: { flexDirection: 'row', gap: 10 },
   manualInput: {
-    flex: 1, backgroundColor: COLORS.surfaceElevated, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, fontSize: 18, color: COLORS.text,
-    fontFamily: 'Courier New', letterSpacing: 2, borderWidth: 1, borderColor: COLORS.border,
+    flex: 1, borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 14, fontSize: 18,
+    fontFamily: 'Courier New', letterSpacing: 2, borderWidth: 1,
   },
-  redeemBtn: { backgroundColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
+  redeemBtn: { borderRadius: 12, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   btnDisabled: { opacity: 0.5 },
   redeemBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  retryBtn: { alignItems: 'center', marginTop: 20, padding: 12, backgroundColor: COLORS.surfaceElevated, borderRadius: 12 },
-  retryText: { color: COLORS.primary, fontWeight: '600', fontSize: 15 },
+  retryBtn: { alignItems: 'center', marginTop: 20, padding: 12, borderRadius: 12 },
+  retryText: { fontWeight: '600', fontSize: 15 },
 });

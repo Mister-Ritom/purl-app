@@ -9,6 +9,7 @@ import {
 } from '@react-native-firebase/messaging';
 import firestore, { Timestamp } from '@react-native-firebase/firestore';
 import notifee, { AndroidImportance, AndroidVisibility, EventType } from '@notifee/react-native';
+import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useCallStore } from '../store/callStore';
 import { Call } from '../types/call';
@@ -161,17 +162,28 @@ export function setupNotifeeListeners(): () => void {
 // ─── Token Registration ───────────────────────────────────────────────────────
 export async function registerFcmToken(uid: string): Promise<void> {
   try {
+    if (Platform.OS === 'ios') {
+      const apnsToken = await getMessaging().getAPNSToken();
+      if (!apnsToken) {
+        console.warn('[Messaging] No APNS token yet. FCM registration will retry when token is available.');
+        return;
+      }
+    }
+
     const token = await getMessaging().getToken();
     if (token) {
       await saveTokenToFirestore(uid, token);
     }
 
-    // Handle token refresh
     getMessaging().onTokenRefresh(async (newToken) => {
       await saveTokenToFirestore(uid, newToken);
     });
-  } catch (error) {
-    console.error('[Messaging] Failed to register FCM token:', error);
+  } catch (error: any) {
+    if (error.message?.includes('No APNS token')) {
+      console.warn('[Messaging] FCM Token registration deferred: No APNS token (common on simulators).');
+    } else {
+      console.error('[Messaging] Failed to register FCM token:', error);
+    }
   }
 }
 

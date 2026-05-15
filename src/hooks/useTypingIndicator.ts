@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { subscribeToTyping, setTypingIndicator } from '../services/firestore';
+import { subscribeToTyping, setTypingStatus } from '../services/presence';
 import { useAuthStore } from '../store/authStore';
-import { TYPING_DEBOUNCE_MS, TYPING_TIMEOUT_MS } from '../utils/constants';
+import { TYPING_TIMEOUT_MS } from '../utils/constants';
 
 export function useTypingIndicator(convId: string) {
   const uid = useAuthStore((s) => s.user?.uid);
@@ -16,7 +16,7 @@ export function useTypingIndicator(convId: string) {
       unsub();
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       if (isTypingRef.current) {
-        setTypingIndicator(convId, uid, false).catch(() => {});
+        setTypingStatus(convId, uid, false);
       }
     };
   }, [convId, uid]);
@@ -25,12 +25,12 @@ export function useTypingIndicator(convId: string) {
     if (!uid || !convId) return;
     if (!isTypingRef.current) {
       isTypingRef.current = true;
-      setTypingIndicator(convId, uid, true).catch(() => {});
+      setTypingStatus(convId, uid, true);
     }
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => {
       isTypingRef.current = false;
-      setTypingIndicator(convId, uid, false).catch(() => {});
+      setTypingStatus(convId, uid, false);
     }, TYPING_TIMEOUT_MS);
   };
 
@@ -39,9 +39,10 @@ export function useTypingIndicator(convId: string) {
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     if (isTypingRef.current) {
       isTypingRef.current = false;
-      setTypingIndicator(convId, uid, false).catch(() => {});
+      setTypingStatus(convId, uid, false);
     }
   };
 
   return { typingUids, onTyping, onStopTyping };
 }
+

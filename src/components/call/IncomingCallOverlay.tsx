@@ -11,16 +11,69 @@ import { useCallStore } from '../../store/callStore';
 import { Avatar } from '../common/Avatar';
 import { COLORS } from '../../utils/constants';
 import { router } from 'expo-router';
-import { getFirestore, doc, updateDoc, serverTimestamp } from '@react-native-firebase/firestore';
+import { 
+  getFirestore, 
+  doc, 
+  updateDoc, 
+  serverTimestamp, 
+  collection, 
+  query, 
+  where, 
+  onSnapshot,
+  orderBy,
+  limit
+} from '@react-native-firebase/firestore';
+import { useAuthStore } from '../../store/authStore';
 
 export function IncomingCallOverlay() {
   const { incomingCall, setIncomingCall } = useCallStore();
+  const { user } = useAuthStore();
+
+  React.useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(getFirestore(), 'calls'),
+      where('receiverIds', 'array-contains', user.uid),
+      where('status', '==', 'ringing')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        // Find the most recent fresh call
+        const now = Date.now();
+        const freshCall = snapshot.docs
+          .map(d => ({ id: d.id, ...d.data() } as any))
+          .filter(c => {
+            const createdAt = c.createdAt?.toMillis?.() || 0;
+            return (now - createdAt < 60000);
+          })
+          .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))[0];
+
+        if (freshCall && !incomingCall) {
+          setIncomingCall(freshCall);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   if (!incomingCall) return null;
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     const callId = incomingCall.id;
     const type = incomingCall.type;
+    
+    // Update status so the listener stops triggering for this call
+    try {
+      await updateDoc(doc(getFirestore(), 'calls', callId), {
+        status: 'accepted',
+      });
+    } catch (e) {
+      console.error('Error accepting call:', e);
+    }
+
     setIncomingCall(null);
     router.push({ pathname: `/call/${callId}`, params: { type } } as any);
   };

@@ -4,14 +4,15 @@ import { withLayoutContext } from "expo-router";
 import { createNativeBottomTabNavigator } from "@bottom-tabs/react-navigation";
 
 import { useAuthStore } from "../../src/store/authStore";
-import { COLORS } from "../../src/utils/constants";
 import { LoadingScreen } from "../../src/components/common/LoadingScreen";
+import { useTheme } from "../../src/hooks/useTheme";
 
 const NativeTabs = withLayoutContext(
   createNativeBottomTabNavigator().Navigator,
 );
 
 export default function AppLayout() {
+  const { colors } = useTheme();
   const { user, userProfile, isLoading } = useAuthStore();
 
   if (isLoading) return <LoadingScreen />;
@@ -22,7 +23,8 @@ export default function AppLayout() {
     <NativeTabs
       minimizeBehavior="automatic"
       screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
+        tabBarActiveTintColor: colors.primary,
+        headerShown: false, // Usually we handle headers in the screens themselves or they are native
       }}
     >
       <NativeTabs.Screen

@@ -1,12 +1,11 @@
 import React from 'react';
 import {
-  View,
-  Text,
   Image,
   StyleSheet,
   ViewStyle,
 } from 'react-native';
-import { COLORS, SIZES } from '../../utils/constants';
+import { View, Text, useThemeColor } from '../Themed';
+import { SIZES } from '../../utils/constants';
 
 interface AvatarProps {
   uri?: string | null;
@@ -49,7 +48,9 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
   const dim = SIZE_MAP[size];
   const fontSize = dim * 0.36;
-  const onlineDot = dim * 0.28;
+  const onlineDotSize = dim * 0.28;
+  const dotColor = useThemeColor({}, online ? 'online' : 'textMuted');
+  const borderColor = useThemeColor({}, 'background');
 
   return (
     <View style={[styles.container, { width: dim, height: dim }, style]}>
@@ -78,10 +79,11 @@ export const Avatar: React.FC<AvatarProps> = ({
           style={[
             styles.onlineDot,
             {
-              width: onlineDot,
-              height: onlineDot,
-              borderRadius: onlineDot / 2,
-              backgroundColor: online ? COLORS.online : COLORS.textMuted,
+              width: onlineDotSize,
+              height: onlineDotSize,
+              borderRadius: onlineDotSize / 2,
+              backgroundColor: dotColor,
+              borderColor: borderColor,
               right: 0,
               bottom: 0,
             },
@@ -110,6 +112,5 @@ const styles = StyleSheet.create({
   onlineDot: {
     position: 'absolute',
     borderWidth: 2,
-    borderColor: COLORS.background,
   },
 });

@@ -1,17 +1,16 @@
 import React from 'react';
 import {
-  View,
-  Text,
   TouchableOpacity,
   StyleSheet,
   Alert,
   ScrollView,
 } from 'react-native';
+import { View, Text } from '../../../src/components/Themed';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Avatar } from '../../../src/components/common/Avatar';
-import { COLORS } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
+import { useTheme } from '../../../src/hooks/useTheme';
 import { signOut } from '../../../src/services/auth';
 
 const SettingRow = ({ icon, label, subtitle, onPress, destructive }: {
@@ -19,99 +18,121 @@ const SettingRow = ({ icon, label, subtitle, onPress, destructive }: {
 }) => (
   <TouchableOpacity style={styles.settingRow} onPress={onPress} activeOpacity={0.7}>
     <Text style={styles.settingIcon}>{icon}</Text>
-    <View style={styles.settingInfo}>
-      <Text style={[styles.settingLabel, destructive && styles.destructive]}>{label}</Text>
-      {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+    <View style={styles.settingContent}>
+      <Text style={[styles.settingLabel, destructive && { color: '#ef4444' }]}>{label}</Text>
+      {subtitle && <Text type="textSecondary" style={styles.settingSubtitle}>{subtitle}</Text>}
     </View>
-    <Text style={styles.chevron}>›</Text>
+    <Text type="textMuted" style={styles.settingArrow}>›</Text>
   </TouchableOpacity>
 );
 
 export default function SettingsScreen() {
-  const { userProfile, user } = useAuthStore();
-  const displayName = userProfile?.displayName ?? userProfile?.username ?? 'User';
+  const { user, userProfile } = useAuthStore();
+  const { colors } = useTheme();
 
-  const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: signOut },
+      { 
+        text: 'Logout', 
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace('/(auth)/welcome');
+          } catch (err) {
+            Alert.alert('Error', 'Failed to log out');
+          }
+        }
+      },
     ]);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView>
-        <Text style={styles.header}>Settings</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Settings</Text>
+        </View>
 
-        {/* Profile Preview */}
-        <TouchableOpacity
-          style={styles.profileCard}
-          onPress={() => user && router.push(`/profile/${user.uid}`)}
-          activeOpacity={0.8}
+        <TouchableOpacity 
+          style={[styles.profileCard, { backgroundColor: colors.surface }]}
+          onPress={() => router.push('/profile/edit')}
         >
-          <Avatar uri={userProfile?.photoURL} name={displayName} size="lg" />
+          <Avatar uri={user?.photoURL} name={userProfile?.displayName || userProfile?.username} size="lg" />
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{displayName}</Text>
-            <Text style={styles.profileUsername}>@{userProfile?.username}</Text>
-            <Text style={styles.profileAbout} numberOfLines={1}>{userProfile?.about || 'Tap to edit profile'}</Text>
+            <Text style={styles.profileName}>{userProfile?.displayName || userProfile?.username || 'Purl User'}</Text>
+            <Text type="textSecondary" style={styles.profileEmail}>{user?.email}</Text>
           </View>
+          <Text type="textMuted">Edit ›</Text>
         </TouchableOpacity>
 
         <View style={styles.section}>
-          <SettingRow icon="🔑" label="Invite Keys" subtitle="Manage your invite links" onPress={() => router.push('/invite/keys')} />
-          <SettingRow icon="🔍" label="Search Users" subtitle="Find people by username" onPress={() => router.push('/search')} />
+          <Text type="textMuted" style={styles.sectionTitle}>Account</Text>
+          <View style={[styles.sectionContent, { backgroundColor: colors.surface }]}>
+            <SettingRow icon="👤" label="Edit Profile" onPress={() => router.push('/profile/edit')} />
+            <SettingRow icon="🔑" label="Privacy & Security" onPress={() => router.push('/settings/privacy')} />
+            <SettingRow icon="🔔" label="Notifications" onPress={() => router.push('/settings/notifications')} />
+          </View>
         </View>
 
         <View style={styles.section}>
-          <SettingRow icon="👤" label="Account" subtitle="Username, 2-step verification" onPress={() => router.push('/settings/account')} />
-          <SettingRow icon="🔒" label="Privacy" subtitle="Last seen, blocked contacts" onPress={() => router.push('/settings/privacy')} />
-          <SettingRow icon="🔔" label="Notifications" subtitle="Messages, calls, statuses" onPress={() => router.push('/settings/notifications')} />
-          <SettingRow icon="💾" label="Storage & Data" subtitle="Network, storage usage" onPress={() => router.push('/settings/storage')} />
+          <Text type="textMuted" style={styles.sectionTitle}>App</Text>
+          <View style={[styles.sectionContent, { backgroundColor: colors.surface }]}>
+            <SettingRow icon="☁️" label="Storage & Data" onPress={() => router.push('/settings/storage')} />
+            <SettingRow icon="❓" label="Help & Support" />
+            <SettingRow icon="ℹ️" label="About Purl" />
+          </View>
         </View>
 
         <View style={styles.section}>
-          <SettingRow icon="🚪" label="Sign Out" onPress={handleSignOut} destructive />
+          <View style={[styles.sectionContent, { backgroundColor: colors.surface }]}>
+            <SettingRow icon="🚪" label="Logout" onPress={handleLogout} destructive />
+          </View>
         </View>
-
-        <Text style={styles.version}>Purl v1.0.0 · End-to-end encrypted</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { fontSize: 24, fontWeight: '800', color: COLORS.text, padding: 16 },
+  container: { flex: 1 },
+  scroll: { paddingBottom: 40 },
+  header: { padding: 24 },
+  title: { fontSize: 34, fontWeight: '800' },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 16,
+    marginHorizontal: 20,
     padding: 16,
-    backgroundColor: COLORS.surfaceElevated,
-    borderRadius: 16,
-    gap: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderRadius: 20,
+    marginBottom: 24,
   },
-  profileInfo: { flex: 1 },
-  profileName: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  profileUsername: { fontSize: 14, color: COLORS.primary, marginTop: 2 },
-  profileAbout: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
-  section: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    marginHorizontal: 16,
-    marginBottom: 16,
+  profileInfo: { flex: 1, marginLeft: 16 },
+  profileName: { fontSize: 20, fontWeight: '700' },
+  profileEmail: { fontSize: 14, marginTop: 2 },
+  section: { marginBottom: 24 },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginLeft: 36,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  sectionContent: {
+    marginHorizontal: 20,
+    borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  settingRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
-  settingIcon: { fontSize: 22, width: 30 },
-  settingInfo: { flex: 1 },
-  settingLabel: { fontSize: 16, color: COLORS.text, fontWeight: '500' },
-  settingSubtitle: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  destructive: { color: COLORS.error },
-  chevron: { fontSize: 20, color: COLORS.textMuted },
-  version: { textAlign: 'center', color: COLORS.textMuted, fontSize: 12, paddingVertical: 20 },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  settingIcon: { fontSize: 22, width: 32 },
+  settingContent: { flex: 1, marginLeft: 8 },
+  settingLabel: { fontSize: 17, fontWeight: '500' },
+  settingSubtitle: { fontSize: 13, marginTop: 2 },
+  settingArrow: { fontSize: 20, marginLeft: 8 },
 });

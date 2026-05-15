@@ -1,14 +1,17 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { COLORS } from '../../../src/utils/constants';
+import { useTheme } from '../../../src/hooks/useTheme';
 
 export default function ChatsLayout() {
+  const { colors } = useTheme();
+  
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: COLORS.background },
-        headerTintColor: COLORS.text,
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.text,
         headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: '800' },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Purl', headerShown: true }} />

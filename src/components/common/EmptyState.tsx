@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { COLORS } from '../../utils/constants';
+import { StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, useThemeColor } from '../Themed';
 
 interface EmptyStateProps {
   icon?: string;
@@ -20,9 +20,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   <View style={styles.container}>
     <Text style={styles.icon}>{icon}</Text>
     <Text style={styles.title}>{title}</Text>
-    {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+    {subtitle && <Text type="textSecondary" style={styles.subtitle}>{subtitle}</Text>}
     {actionLabel && onAction && (
-      <TouchableOpacity style={styles.button} onPress={onAction}>
+      <TouchableOpacity style={[styles.button, { backgroundColor: useThemeColor({}, 'primary') }]} onPress={onAction}>
         <Text style={styles.buttonText}>{actionLabel}</Text>
       </TouchableOpacity>
     )}
@@ -43,19 +43,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
   button: {
     marginTop: 24,
-    backgroundColor: COLORS.primary,
     paddingVertical: 12,
     paddingHorizontal: 28,
     borderRadius: 24,

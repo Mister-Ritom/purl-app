@@ -6,7 +6,7 @@ export const GOOGLE_WEB_CLIENT_ID =
 export const FIREBASE_PROJECT_ID = 'purl-app';
 export const FIREBASE_STORAGE_BUCKET = 'purl-app.firebasestorage.app';
 
-export const COLORS = {
+export const COLORS_DARK = {
   primary: '#6C63FF',
   primaryDark: '#4B44CC',
   background: '#0A0A0F',
@@ -24,6 +24,28 @@ export const COLORS = {
   received: '#1A1A28',
   inputBg: '#1A1A28',
 };
+
+export const COLORS_LIGHT = {
+  primary: '#6366F1', // Indigo 500
+  primaryDark: '#4F46E5', // Indigo 600
+  background: '#FFFFFF',
+  surface: '#F8FAFC', // Slate 50
+  surfaceElevated: '#F1F5F9', // Slate 100
+  border: '#E2E8F0', // Slate 200
+  text: '#0F172A', // Slate 900
+  textSecondary: '#475569', // Slate 600
+  textMuted: '#94A3B8', // Slate 400
+  online: '#10B981', // Emerald 500
+  error: '#EF4444', // Red 500
+  warning: '#F59E0B', // Amber 500
+  success: '#10B981', // Emerald 500
+  sent: '#6366F1',
+  received: '#F1F5F9',
+  inputBg: '#F8FAFC',
+};
+
+// Legacy export for backward compatibility
+export const COLORS = COLORS_DARK;
 
 export const FONTS = {
   regular: 'System',

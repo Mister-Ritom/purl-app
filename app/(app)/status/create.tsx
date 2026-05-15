@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text } from '../../../src/components/Themed';
+import { useTheme } from '../../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { COLORS } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
-import { getFirestore, collection, doc, addDoc, serverTimestamp } from '@react-native-firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp } from '@react-native-firebase/firestore';
 
 export default function CreateStatusScreen() {
+  const { colors } = useTheme();
   const { user } = useAuthStore();
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,13 +36,13 @@ export default function CreateStatusScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.cancel}>Cancel</Text>
+          <Text style={{ fontSize: 16 }}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.postBtn, !text.trim() && styles.postBtnDisabled]} 
+          style={[styles.postBtn, { backgroundColor: colors.primary }, !text.trim() && styles.postBtnDisabled]} 
           onPress={handlePost}
           disabled={!text.trim() || loading}
         >
@@ -49,9 +51,9 @@ export default function CreateStatusScreen() {
       </View>
       
       <TextInput
-        style={styles.input}
+        style={[styles.input, { color: colors.text }]}
         placeholder="What's on your mind?"
-        placeholderTextColor={COLORS.textMuted}
+        placeholderTextColor={colors.textMuted}
         multiline
         autoFocus
         value={text}
@@ -63,11 +65,10 @@ export default function CreateStatusScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  cancel: { color: COLORS.text, fontSize: 16 },
-  postBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
+  postBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
   postBtnDisabled: { opacity: 0.5 },
   postText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  input: { flex: 1, color: COLORS.text, fontSize: 20, padding: 20, textAlignVertical: 'top' },
+  input: { flex: 1, fontSize: 20, padding: 20, textAlignVertical: 'top' },
 });

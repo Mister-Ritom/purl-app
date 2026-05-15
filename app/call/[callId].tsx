@@ -25,6 +25,7 @@ import {
   setSpeakerphone,
 } from '../../src/services/agora';
 import { getFirestore, doc, getDoc, updateDoc, serverTimestamp, onSnapshot } from '@react-native-firebase/firestore';
+import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import { UserProfile } from '../../src/types/user';
 import { formatDuration } from '../../src/utils/formatTime';
 
@@ -118,13 +119,19 @@ export default function CallScreen() {
       // If we are the receiver, we should get our own token to be safe, 
       // as tokens are UID-bound.
       if (call.callerId !== user.uid) {
-        const { httpsCallable } = await import('@react-native-firebase/functions');
-        const { getFunctions } = await import('@react-native-firebase/functions');
-        const result = await httpsCallable(getFunctions(), 'generateAgoraToken')({
-          channelName: callId,
-          uid: user.uid
-        });
-        token = (result.data as any).token;
+        try {
+          const result = await httpsCallable(getFunctions(), 'generateAgoraToken')({
+            channelName: callId,
+            uid: user.uid
+          });
+          token = (result.data as any).token;
+        } catch (err: any) {
+          console.error('[CallScreen] generateAgoraToken error:', err);
+          if (err.code === 'unauthenticated') {
+            throw new Error('Your session expired. Please log in again.');
+          }
+          throw err;
+        }
       }
 
       if (!token) throw new Error('No Agora token available');
@@ -135,7 +142,7 @@ export default function CallScreen() {
         setCallStatus('ringing');
       } else {
         // If receiver, mark call as active in Firestore
-        if (call.status === 'ringing') {
+        if (call.status === 'ringing' || call.status === 'accepted') {
           await updateDoc(callDocRef, {
             status: 'active',
             startedAt: serverTimestamp(),

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
@@ -11,13 +9,13 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { View, Text } from '../../src/components/Themed';
+import { useTheme } from '../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { getFirestore, doc, collection, setDoc, Timestamp, serverTimestamp } from '@react-native-firebase/firestore';
-import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
+import { getFirestore, doc, setDoc, Timestamp, serverTimestamp } from '@react-native-firebase/firestore';
 import { useAuthStore } from '../../src/store/authStore';
 import { generateInviteToken } from '../../src/utils/generateKey';
-import { COLORS } from '../../src/utils/constants';
 
 type KeyType = 'single' | 'multi' | 'permanent';
 type Expiry = '1h' | '24h' | '7d' | '30d' | 'never';
@@ -37,6 +35,7 @@ function expiresAtDate(expiry: Expiry): Date | null {
 }
 
 export default function CreateKeyScreen() {
+  const { colors } = useTheme();
   const { user } = useAuthStore();
   const [type, setType] = useState<KeyType>('single');
   const [maxUses, setMaxUses] = useState('5');
@@ -66,10 +65,7 @@ export default function CreateKeyScreen() {
       };
       
       const db = getFirestore();
-      
-      // 1. Create the global key (Single Source of Truth)
       await setDoc(doc(db, 'inviteKeys', token), keyData);
-      
       router.back();
     } catch (err: any) {
       console.error('[CreateKey] Error:', err);
@@ -80,21 +76,20 @@ export default function CreateKeyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll}>
           <Text style={styles.title}>Create Invite Key</Text>
 
-          {/* Type selector */}
-          <Text style={styles.sectionLabel}>Key Type</Text>
-          <View style={styles.segmented}>
+          <Text style={styles.sectionLabel} type="textSecondary">Key Type</Text>
+          <View style={[styles.segmented, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             {(['single', 'multi', 'permanent'] as KeyType[]).map((t) => (
               <TouchableOpacity
                 key={t}
-                style={[styles.segmentBtn, type === t && styles.segmentBtnActive]}
+                style={[styles.segmentBtn, type === t && { backgroundColor: colors.primary }]}
                 onPress={() => setType(t)}
               >
-                <Text style={[styles.segmentText, type === t && styles.segmentTextActive]}>
+                <Text style={[styles.segmentText, type === t && { color: '#fff' }]}>
                   {t === 'single' ? 'Single' : t === 'multi' ? 'Multi' : '∞ Permanent'}
                 </Text>
               </TouchableOpacity>
@@ -103,48 +98,49 @@ export default function CreateKeyScreen() {
 
           {type === 'multi' && (
             <View style={styles.field}>
-              <Text style={styles.sectionLabel}>Max Uses</Text>
+              <Text style={styles.sectionLabel} type="textSecondary">Max Uses</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
                 value={maxUses}
                 onChangeText={setMaxUses}
                 keyboardType="number-pad"
                 maxLength={3}
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           )}
 
-          {/* Expiry */}
-          <Text style={styles.sectionLabel}>Expiry</Text>
+          <Text style={styles.sectionLabel} type="textSecondary">Expiry</Text>
           <View style={styles.expiryGrid}>
             {(Object.keys(EXPIRY_LABELS) as Expiry[]).map((e) => (
               <TouchableOpacity
                 key={e}
-                style={[styles.expiryBtn, expiry === e && styles.expiryBtnActive]}
+                style={[
+                  styles.expiryBtn, 
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                  expiry === e && { backgroundColor: colors.primary, borderColor: colors.primary }
+                ]}
                 onPress={() => setExpiry(e)}
               >
-                <Text style={[styles.expiryText, expiry === e && styles.expiryTextActive]}>{EXPIRY_LABELS[e]}</Text>
+                <Text style={[styles.expiryText, expiry === e && { color: '#fff' }]}>{EXPIRY_LABELS[e]}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Label */}
           <View style={styles.field}>
-            <Text style={styles.sectionLabel}>Label (optional)</Text>
+            <Text style={styles.sectionLabel} type="textSecondary">Label (optional)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
               value={label}
               onChangeText={setLabel}
               placeholder="e.g. For Alex"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={colors.textMuted}
               maxLength={40}
             />
           </View>
 
-
           <TouchableOpacity
-            style={[styles.createBtn, creating && styles.btnDisabled]}
+            style={[styles.createBtn, { backgroundColor: colors.primary }, creating && styles.btnDisabled]}
             onPress={handleCreate}
             disabled={creating}
           >
@@ -157,28 +153,19 @@ export default function CreateKeyScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   scroll: { padding: 20, gap: 20 },
-  title: { fontSize: 24, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-  segmented: { flexDirection: 'row', backgroundColor: COLORS.surfaceElevated, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: COLORS.border },
+  title: { fontSize: 24, fontWeight: '800', marginBottom: 8 },
+  sectionLabel: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  segmented: { flexDirection: 'row', borderRadius: 12, padding: 4, borderWidth: 1 },
   segmentBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  segmentBtnActive: { backgroundColor: COLORS.primary },
-  segmentText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
-  segmentTextActive: { color: '#fff' },
+  segmentText: { fontSize: 13, fontWeight: '600' },
   field: { gap: 8 },
-  input: { backgroundColor: COLORS.surfaceElevated, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border },
+  input: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, borderWidth: 1 },
   expiryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  expiryBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surfaceElevated },
-  expiryBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  expiryText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
-  expiryTextActive: { color: '#fff' },
-  tokenCard: { backgroundColor: COLORS.surfaceElevated, borderRadius: 14, padding: 16, gap: 8, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  tokenLabel: { fontSize: 12, color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
-  tokenValue: { fontSize: 24, fontWeight: '700', color: COLORS.text, fontFamily: 'Courier New', letterSpacing: 3 },
-  refreshBtn: { paddingVertical: 8 },
-  refreshText: { color: COLORS.primary, fontSize: 14 },
-  createBtn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 16, alignItems: 'center', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  expiryBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1 },
+  expiryText: { fontSize: 13, fontWeight: '600' },
+  createBtn: { borderRadius: 14, paddingVertical: 16, alignItems: 'center', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
   btnDisabled: { opacity: 0.6 },
   createBtnText: { fontSize: 17, fontWeight: '700', color: '#fff' },
 });

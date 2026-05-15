@@ -1,95 +1,116 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View,
-  Text,
   TextInput,
   FlatList,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
+import { View, Text } from '../../src/components/Themed';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { getFirestore, collection, query, where, limit, getDocs } from '@react-native-firebase/firestore';
 import { Avatar } from '../../src/components/common/Avatar';
 import { EmptyState } from '../../src/components/common/EmptyState';
-import { COLORS } from '../../src/utils/constants';
+import { useTheme } from '../../src/hooks/useTheme';
 import { UserProfile } from '../../src/types/user';
 
 const DEBOUNCE = 300;
 
 export default function SearchScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { colors } = useTheme();
+  const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<UserProfile[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const doSearch = useCallback((q: string) => {
-    if (!q.trim()) { setResults([]); setSearched(false); return; }
-    setSearching(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      const clean = q.toLowerCase().trim().replace('@', '');
-      const usersQuery = query(
-        collection(getFirestore(), 'users'),
-        where('username', '>=', clean),
-        where('username', '<=', clean + '\uf8ff'),
+  const performSearch = async (text: string) => {
+    if (!text.trim()) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const db = getFirestore();
+      const lowerText = text.toLowerCase();
+      
+      const q = query(
+        collection(db, 'users'),
+        where('username', '>=', lowerText),
+        where('username', '<=', lowerText + '\uf8ff'),
         limit(20)
       );
-      const snap = await getDocs(usersQuery);
-      const users = snap.docs.map((d) => ({ uid: d.id, ...d.data() })) as UserProfile[];
+      
+      const snapshot = await getDocs(q);
+      const users = snapshot.docs.map(doc => doc.data() as UserProfile);
       setResults(users);
-      setSearching(false);
-      setSearched(true);
-    }, DEBOUNCE);
-  }, []);
+    } catch (err) {
+      console.error('Search error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.input}
-          value={searchQuery}
-          onChangeText={(t) => { setSearchQuery(t); doSearch(t); }}
-          placeholder="Search by username..."
-          placeholderTextColor={COLORS.textMuted}
-          autoFocus
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {searchQuery ? (
-          <TouchableOpacity onPress={() => { setSearchQuery(''); setResults([]); setSearched(false); }}>
-            <Text style={styles.clearBtn}>✕</Text>
-          </TouchableOpacity>
-        ) : null}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backIcon}>‹</Text>
+        </TouchableOpacity>
+        <View style={[styles.searchBar, { backgroundColor: colors.surface }]}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={[styles.input, { color: colors.text }]}
+            placeholder="Search by username..."
+            placeholderTextColor={colors.textMuted}
+            value={searchText}
+            onChangeText={(t) => {
+              setSearchText(t);
+              performSearch(t);
+            }}
+            autoFocus
+            autoCapitalize="none"
+          />
+          {searchText ? (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Text style={styles.clearIcon}>✕</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
-      {searching ? (
-        <ActivityIndicator style={styles.loader} color={COLORS.primary} />
-      ) : searched && results.length === 0 ? (
-        <EmptyState icon="👀" title={`No user found for "@${searchQuery}"`} subtitle="Try a different username." />
-      ) : (
+      {loading ? (
+        <ActivityIndicator style={styles.loader} color={colors.primary} />
+      ) : results.length > 0 ? (
         <FlatList
           data={results}
-          keyExtractor={(u) => u.uid}
+          keyExtractor={(item) => item.uid}
+          contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.userRow}
+            <TouchableOpacity 
+              style={[styles.userItem, { backgroundColor: colors.surface }]}
               onPress={() => router.push(`/profile/${item.uid}`)}
-              activeOpacity={0.7}
             >
-              <Avatar uri={item.photoURL} name={item.displayName} size="md" online={item.isOnline} />
+              <Avatar uri={item.photoURL} name={item.displayName || item.username} size="md" />
               <View style={styles.userInfo}>
-                <Text style={styles.displayName}>{item.displayName}</Text>
-                <Text style={styles.username}>@{item.username}</Text>
+                <Text style={styles.userName}>{item.displayName || item.username}</Text>
+                <Text type="textSecondary" style={styles.userHandle}>@{item.username}</Text>
               </View>
-              <Text style={styles.arrow}>›</Text>
+              <Text type="textMuted">›</Text>
             </TouchableOpacity>
           )}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
-          keyboardShouldPersistTaps="handled"
+        />
+      ) : searchText ? (
+        <EmptyState 
+          icon="🤷‍♂️" 
+          title="No users found" 
+          subtitle={`No one with username matching "${searchText}"`}
+        />
+      ) : (
+        <EmptyState 
+          icon="🔍" 
+          title="Search Purl" 
+          subtitle="Find your friends by their unique username"
         />
       )}
     </SafeAreaView>
@@ -97,21 +118,36 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    margin: 12, paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: COLORS.surfaceElevated, borderRadius: 14,
-    borderWidth: 1, borderColor: COLORS.border,
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
-  searchIcon: { fontSize: 16 },
-  input: { flex: 1, fontSize: 16, color: COLORS.text },
-  clearBtn: { color: COLORS.textMuted, fontSize: 16, padding: 4 },
+  backBtn: { padding: 4 },
+  backIcon: { fontSize: 32, fontWeight: '300' },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 44,
+    borderRadius: 22,
+  },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  input: { flex: 1, fontSize: 16, height: '100%' },
+  clearIcon: { fontSize: 16, padding: 4 },
   loader: { marginTop: 40 },
-  userRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
-  userInfo: { flex: 1 },
-  displayName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  username: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  arrow: { fontSize: 20, color: COLORS.textMuted },
-  sep: { height: 1, backgroundColor: COLORS.border, marginLeft: 78 },
+  list: { padding: 16, gap: 12 },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+  },
+  userInfo: { flex: 1, marginLeft: 12 },
+  userName: { fontSize: 16, fontWeight: '700' },
+  userHandle: { fontSize: 14, marginTop: 2 },
 });

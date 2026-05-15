@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -11,14 +9,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
+import { View, Text } from '../../src/components/Themed';
+import { useTheme } from '../../src/hooks/useTheme';
+import { useAuthStore } from '../../src/store/authStore';
 import { Avatar } from '../../src/components/common/Avatar';
 import { LoadingScreen } from '../../src/components/common/LoadingScreen';
-import { COLORS } from '../../src/utils/constants';
 import { UserProfile } from '../../src/types/user';
-import { useAuthStore } from '../../src/store/authStore';
 import { findConversationBetween } from '../../src/services/firestore';
 
 export default function ProfileScreen() {
+  const { colors } = useTheme();
   const { uid } = useLocalSearchParams<{ uid: string }>();
   const { user } = useAuthStore();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -72,7 +72,8 @@ export default function ProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Back */}
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
@@ -137,37 +138,38 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   scroll: { padding: 20 },
   backBtn: { marginBottom: 20 },
-  backIcon: { fontSize: 17, color: COLORS.primary, fontWeight: '500' },
+  backIcon: { fontSize: 17, fontWeight: '500' },
   header: { alignItems: 'center', gap: 8, marginBottom: 24 },
-  displayName: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginTop: 12 },
-  username: { fontSize: 15, color: COLORS.primary },
-  onlineBadge: { backgroundColor: COLORS.online + '20', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  onlineBadgeText: { fontSize: 13, color: COLORS.online, fontWeight: '600' },
-  lastSeen: { fontSize: 13, color: COLORS.textSecondary },
-  aboutCard: { backgroundColor: COLORS.surfaceElevated, borderRadius: 14, padding: 16, gap: 6, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
-  aboutLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
-  aboutText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
+  displayName: { fontSize: 26, fontWeight: '800', marginTop: 12 },
+  username: { fontSize: 15 },
+  onlineBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+  onlineBadgeText: { fontSize: 13, fontWeight: '600' },
+  lastSeen: { fontSize: 13 },
+  aboutCard: { borderRadius: 14, padding: 16, gap: 6, marginBottom: 20, borderWidth: 1 },
+  aboutLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
+  aboutText: { fontSize: 15, lineHeight: 22 },
   actions: { flexDirection: 'row', gap: 12, marginBottom: 24, justifyContent: 'center' },
-  actionBtn: { flex: 1, alignItems: 'center', backgroundColor: COLORS.surfaceElevated, borderRadius: 14, paddingVertical: 16, gap: 6, borderWidth: 1, borderColor: COLORS.border },
+  actionBtn: { flex: 1, alignItems: 'center', borderRadius: 14, paddingVertical: 16, gap: 6, borderWidth: 1 },
   actionIcon: { fontSize: 24 },
-  actionText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '600' },
-  editProfileBtn: { backgroundColor: COLORS.surfaceElevated, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: COLORS.border },
-  editProfileText: { fontSize: 16, color: COLORS.text, fontWeight: '600' },
-  section: { backgroundColor: COLORS.surfaceElevated, borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  sectionEmpty: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', paddingVertical: 20 },
+  actionText: { fontSize: 13, fontWeight: '600' },
+  editProfileBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 24, borderWidth: 1 },
+  editProfileText: { fontSize: 16, fontWeight: '600' },
+  section: { borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
+  sectionEmpty: { fontSize: 14, textAlign: 'center', paddingVertical: 20 },
   safetySection: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 8 },
-  blockText: { color: COLORS.error, fontSize: 14, fontWeight: '600' },
-  reportText: { color: COLORS.textMuted, fontSize: 14 },
+  blockText: { fontSize: 14, fontWeight: '600' },
+  reportText: { fontSize: 14 },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { color: COLORS.textSecondary, fontSize: 16 },
+  notFoundText: { fontSize: 16 },
 });

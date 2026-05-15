@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
   TouchableOpacity,
   StyleSheet,
   Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { View, Text } from '../../src/components/Themed';
+import { useTheme } from '../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signInWithGoogle } from '../../src/services/auth';
-import { COLORS } from '../../src/utils/constants';
 
 export default function WelcomeScreen() {
+  const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
@@ -29,13 +29,14 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={['#0A0A0F', '#12104A', '#0A0A0F']}
+        colors={isDark ? ['#0A0A0F', '#12104A', '#0A0A0F'] : ['#F8FAFC', '#EEF2FF', '#F8FAFC']}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
+      <SafeAreaView style={{ flex: 1 }}>
 
       {/* Hero Section */}
       <View style={styles.hero}>
@@ -86,17 +87,15 @@ export default function WelcomeScreen() {
           <Text style={styles.legalLink}>Privacy Policy</Text>
         </Text>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    justifyContent: 'space-between',
     paddingHorizontal: 28,
-    paddingVertical: 20,
   },
   hero: {
     alignItems: 'center',
@@ -111,20 +110,17 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 52,
     fontWeight: '800',
-    color: COLORS.text,
     letterSpacing: -2,
     marginBottom: 8,
   },
   tagline: {
     fontSize: 18,
-    color: COLORS.primary,
     fontWeight: '600',
     marginBottom: 12,
     textAlign: 'center',
   },
   description: {
     fontSize: 15,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -135,23 +131,22 @@ const styles = StyleSheet.create({
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceElevated,
     borderRadius: 14,
     padding: 16,
     gap: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   featureIcon: {
     fontSize: 22,
   },
   featureText: {
     fontSize: 15,
-    color: COLORS.text,
     fontWeight: '500',
   },
   footer: {
     gap: 16,
+    marginTop: 'auto',
+    paddingBottom: 20,
   },
   googleButton: {
     backgroundColor: '#FFFFFF',
@@ -161,10 +156,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
     elevation: 8,
   },
   googleButtonDisabled: {
@@ -183,11 +177,9 @@ const styles = StyleSheet.create({
   legal: {
     textAlign: 'center',
     fontSize: 12,
-    color: COLORS.textMuted,
     lineHeight: 18,
   },
   legalLink: {
-    color: COLORS.primary,
     textDecorationLine: 'underline',
   },
 });

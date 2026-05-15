@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, useThemeColor } from '../../src/components/Themed';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,19 +60,27 @@ export default function EditProfileScreen() {
     }
   };
 
+  const primary = useThemeColor({}, 'primary');
+  const text = useThemeColor({}, 'text');
+  const textSecondary = useThemeColor({}, 'textSecondary');
+  const border = useThemeColor({}, 'border');
+  const surface = useThemeColor({}, 'surface');
+  const surfaceElevated = useThemeColor({}, 'surfaceElevated');
+  const background = useThemeColor({}, 'background');
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { borderBottomColor: border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <Ionicons name="close" size={24} color={COLORS.text} />
+            <Ionicons name="close" size={24} color={text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Profile</Text>
+          <Text style={styles.headerTitle} type="text">Edit Profile</Text>
           <TouchableOpacity onPress={handleSave} disabled={isLoading} style={styles.iconBtn}>
-            <Text style={[styles.saveBtn, isLoading && { opacity: 0.5 }]}>Save</Text>
+            <Text style={[styles.saveBtn, { color: primary }, isLoading && { opacity: 0.5 }]}>Save</Text>
           </TouchableOpacity>
         </View>
 
@@ -81,36 +90,36 @@ export default function EditProfileScreen() {
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <Ionicons name="person" size={40} color={COLORS.textMuted} />
+                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: surfaceElevated }]}>
+                  <Ionicons name="person" size={40} color={textSecondary} />
                 </View>
               )}
-              <View style={styles.editBadge}>
-                <Ionicons name="camera" size={16} color={COLORS.text} />
+              <View style={[styles.editBadge, { backgroundColor: primary, borderColor: background }]}>
+                <Ionicons name="camera" size={16} color="#fff" />
               </View>
             </TouchableOpacity>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Name</Text>
+            <Text style={styles.label} type="textSecondary">Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: surface, color: text, borderColor: border }]}
               value={displayName}
               onChangeText={setDisplayName}
               placeholder="Your name"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={textSecondary}
               maxLength={30}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>About</Text>
+            <Text style={styles.label} type="textSecondary">About</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: surface, color: text, borderColor: border }]}
               value={about}
               onChangeText={setAbout}
               placeholder="Available"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={textSecondary}
               multiline
               maxLength={130}
             />
@@ -124,7 +133,6 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -133,10 +141,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   headerTitle: {
-    color: COLORS.text,
     fontSize: 18,
     fontFamily: FONTS.medium,
   },
@@ -144,7 +150,6 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   saveBtn: {
-    color: COLORS.primary,
     fontSize: 16,
     fontFamily: FONTS.bold,
   },
@@ -164,7 +169,6 @@ const styles = StyleSheet.create({
     borderRadius: 50,
   },
   avatarPlaceholder: {
-    backgroundColor: COLORS.surfaceElevated,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -172,33 +176,27 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: COLORS.primary,
     width: 32,
     height: 32,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: COLORS.background,
   },
   inputGroup: {
     marginBottom: 20,
   },
   label: {
-    color: COLORS.textSecondary,
     fontSize: 14,
     fontFamily: FONTS.medium,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: COLORS.surface,
-    color: COLORS.text,
     borderRadius: SIZES.borderRadiusSm,
     padding: 12,
     fontSize: 16,
     fontFamily: FONTS.regular,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   textArea: {
     minHeight: 80,

@@ -242,39 +242,6 @@ export async function uploadEncryptedMedia(
   return await getDownloadURL(storageRefPath);
 }
 
-// --- TYPING ---
-export async function setTypingIndicator(
-  convId: string,
-  uid: string,
-  isTyping: boolean
-): Promise<void> {
-  const typingRef = doc(getFirestore(), 'conversations', convId, 'typing', uid);
-
-  if (isTyping) {
-    await setDoc(typingRef, { uid, timestamp: serverTimestamp() });
-  } else {
-    await deleteDoc(typingRef);
-  }
-}
-
-export function subscribeToTyping(
-  convId: string,
-  currentUid: string,
-  onData: (typingUids: string[]) => void
-): () => void {
-  const q = collection(getFirestore(), 'conversations', convId, 'typing');
-  return onSnapshot(q, (snap) => {
-    if (!snap || !snap.docs) {
-      onData([]);
-      return;
-    }
-    const uids = snap.docs
-      .map((d) => d.id)
-      .filter((id) => id !== currentUid);
-    onData(uids);
-  });
-}
-
 // --- DIRECT CONVERSATION HELPERS ---
 export async function getOrCreateDirectConversation(uid1: string, uid2: string): Promise<string> {
   const existing = await findConversationBetween(uid1, uid2);

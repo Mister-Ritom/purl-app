@@ -3,10 +3,10 @@ import {
   ref, 
   onValue, 
   set, 
+  remove,
   onDisconnect, 
   serverTimestamp as databaseTimestamp
 } from '@react-native-firebase/database';
-import { getFirestore, doc, updateDoc, serverTimestamp as firestoreTimestamp } from '@react-native-firebase/firestore';
 import { AppState, AppStateStatus } from 'react-native';
 
 let presenceInitialized = false;
@@ -23,26 +23,17 @@ export function initPresence(uid: string): () => void {
     if (snap.val()) {
       onDisconnect(presenceRef).set({ online: false, lastSeen: databaseTimestamp() });
       set(presenceRef, { online: true });
-
-      const userDocRef = doc(getFirestore(), 'users', uid);
-      updateDoc(userDocRef, { isOnline: true }).catch(() => {});
     }
   });
 
   appStateSubscription = AppState.addEventListener('change', (state: AppStateStatus) => {
-    const userDocRef = doc(getFirestore(), 'users', uid);
     if (state === 'active') {
       set(presenceRef, { online: true });
-      updateDoc(userDocRef, { isOnline: true }).catch(() => {});
     } else {
       set(presenceRef, {
         online: false,
         lastSeen: databaseTimestamp(),
       });
-      updateDoc(userDocRef, {
-        isOnline: false,
-        lastSeen: firestoreTimestamp(),
-      }).catch(() => {});
     }
   });
 
@@ -52,3 +43,44 @@ export function initPresence(uid: string): () => void {
     presenceInitialized = false;
   };
 }
+
+// --- Typing Indicators ---
+
+export function setTypingStatus(convId: string, uid: string, isTyping: boolean) {
+  const typingRef = ref(getDatabase(), `typing/${convId}/${uid}`);
+  if (isTyping) {
+    set(typingRef, true);
+    onDisconnect(typingRef).remove();
+  } else {
+    remove(typingRef);
+  }
+}
+
+export function subscribeToTyping(convId: string, currentUid: string, onData: (typingUids: string[]) => void): () => void {
+  const typingRef = ref(getDatabase(), `typing/${convId}`);
+  return onValue(typingRef, (snap) => {
+    const val = snap.val();
+    if (!val) {
+      onData([]);
+      return;
+    }
+    const uids = Object.keys(val).filter(uid => uid !== currentUid);
+    onData(uids);
+  });
+}
+
+// --- Presence Reading ---
+
+export interface UserStatus {
+  online: boolean;
+  lastSeen?: number;
+}
+
+export function subscribeToUserStatus(uid: string, onData: (status: UserStatus) => void): () => void {
+  const presenceRef = ref(getDatabase(), `presence/${uid}`);
+  return onValue(presenceRef, (snap) => {
+    const val = snap.val();
+    onData(val || { online: false });
+  });
+}
+

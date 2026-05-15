@@ -1,16 +1,15 @@
 import React from 'react';
 import {
-  View,
-  Text,
   TouchableOpacity,
   StyleSheet,
   ViewStyle,
 } from 'react-native';
+import { View, Text, useThemeColor } from '../Themed';
 import { Avatar } from './Avatar';
-import { COLORS } from '../../utils/constants';
 import { UserProfile } from '../../types/user';
 import { formatConversationTime } from '../../utils/formatTime';
 import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { useUserStatus } from '../../hooks/useUserStatus';
 
 interface UserListItemProps {
   user?: Partial<UserProfile>;
@@ -21,7 +20,6 @@ interface UserListItemProps {
   rightElement?: React.ReactNode;
   onPress?: () => void;
   style?: ViewStyle;
-  isOnline?: boolean;
 }
 
 export const UserListItem: React.FC<UserListItemProps> = ({
@@ -33,8 +31,8 @@ export const UserListItem: React.FC<UserListItemProps> = ({
   rightElement,
   onPress,
   style,
-  isOnline,
 }) => {
+  const status = useUserStatus(user?.uid);
   const displayName = title ?? user?.displayName ?? user?.username ?? 'Unknown';
 
   return (
@@ -47,7 +45,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
         uri={user?.photoURL}
         name={displayName}
         size="md"
-        online={isOnline}
+        online={status.online}
       />
       <View style={styles.content}>
         <View style={styles.topRow}>
@@ -55,16 +53,20 @@ export const UserListItem: React.FC<UserListItemProps> = ({
             {displayName}
           </Text>
           {timestamp && (
-            <Text style={styles.time}>{formatConversationTime(timestamp)}</Text>
+            <Text type="textSecondary" style={styles.time}>{formatConversationTime(timestamp)}</Text>
           )}
         </View>
         <View style={styles.bottomRow}>
-          <Text numberOfLines={1} style={[styles.subtitle, unreadCount ? styles.subtitleUnread : undefined]}>
+          <Text 
+            type="textSecondary"
+            numberOfLines={1} 
+            style={[styles.subtitle, unreadCount ? styles.subtitleUnread : undefined]}
+          >
             {subtitle ?? ''}
           </Text>
           {rightElement}
           {(unreadCount ?? 0) > 0 && (
-            <View style={styles.badge}>
+            <View style={[styles.badge, { backgroundColor: useThemeColor({}, 'primary') }]}>
               <Text style={styles.badgeText}>
                 {(unreadCount ?? 0) > 99 ? '99+' : unreadCount}
               </Text>
@@ -76,51 +78,49 @@ export const UserListItem: React.FC<UserListItemProps> = ({
   );
 };
 
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
     marginLeft: 12,
+    backgroundColor: 'transparent',
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
+    backgroundColor: 'transparent',
   },
   name: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
     flex: 1,
     marginRight: 8,
   },
   time: {
     fontSize: 12,
-    color: COLORS.textSecondary,
   },
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   subtitle: {
     fontSize: 14,
-    color: COLORS.textSecondary,
     flex: 1,
   },
   subtitleUnread: {
-    color: COLORS.text,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   badge: {
-    backgroundColor: COLORS.primary,
     borderRadius: 10,
     minWidth: 20,
     height: 20,

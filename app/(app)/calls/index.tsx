@@ -64,7 +64,7 @@ export default function CallsScreen() {
               {isOutgoing ? '↗ ' : '↘ '}
               {item.type === 'voice' ? 'Voice' : 'Video'} call
             </Text>
-            {item.duration && (
+            {!!item.duration && (
               <Text style={styles.callDuration}> · {formatDuration(item.duration)}</Text>
             )}
           </View>

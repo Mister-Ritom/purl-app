@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
   FlatList,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { View, Text } from '../../../src/components/Themed';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useConversations } from '../../../src/hooks/useConversations';
@@ -15,6 +14,7 @@ import { useAuthStore } from '../../../src/store/authStore';
 import { useChatStore } from '../../../src/store/chatStore';
 import { UserListItem } from '../../../src/components/common/UserListItem';
 import { EmptyState } from '../../../src/components/common/EmptyState';
+import { useTheme } from '../../../src/hooks/useTheme';
 import { COLORS } from '../../../src/utils/constants';
 import { Conversation } from '../../../src/types/conversation';
 import { decryptMessage, decryptWithGroupKey } from '../../../src/services/encryption';
@@ -22,6 +22,7 @@ import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { UserProfile } from '../../../src/types/user';
 
 export default function ChatListScreen() {
+  const { colors } = useTheme();
   const conversations = useConversations();
   const { user } = useAuthStore();
   const { getSharedSecretFromCache, getGroupKeyFromCache } = useChatStore();
@@ -92,7 +93,6 @@ export default function ChatListScreen() {
         subtitle={item.preview}
         timestamp={item.lastMessage?.timestamp}
         unreadCount={unreadCount}
-        isOnline={item.otherUser?.isOnline}
         onPress={() => router.push(`/chats/${item.id}`)}
       />
     );
@@ -102,11 +102,11 @@ export default function ChatListScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Search bar */}
       <TouchableOpacity
-        style={styles.searchBar}
+        style={[styles.searchBar, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
         onPress={() => router.push('/search')}
         activeOpacity={0.8}
       >
-        <Text style={styles.searchText}>🔍  Search users...</Text>
+        <Text style={[styles.searchText, { color: colors.textMuted }]}>🔍  Search users...</Text>
       </TouchableOpacity>
 
       {conversations.length === 0 ? (
@@ -125,12 +125,12 @@ export default function ChatListScreen() {
           windowSize={5}
           maxToRenderPerBatch={10}
           removeClippedSubviews
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 600); }}
-              tintColor={COLORS.primary}
+              tintColor={colors.primary}
             />
           }
         />
@@ -138,7 +138,7 @@ export default function ChatListScreen() {
 
       {/* FAB */}
       <View style={styles.fabContainer}>
-        <TouchableOpacity style={styles.fab} onPress={() => router.push('/invite/keys')}>
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={() => router.push('/invite/keys')}>
           <Text style={styles.fabIcon}>🔑</Text>
         </TouchableOpacity>
       </View>
@@ -147,27 +147,23 @@ export default function ChatListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   searchBar: {
     margin: 12,
-    backgroundColor: COLORS.surfaceElevated,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  searchText: { color: COLORS.textMuted, fontSize: 15 },
-  separator: { height: 1, backgroundColor: COLORS.border, marginLeft: 76 },
-  fabContainer: { position: 'absolute', right: 20, bottom: 20 },
+  searchText: { fontSize: 15 },
+  separator: { height: 1, marginLeft: 76 },
+  fabContainer: { position: 'absolute', right: 20, bottom: 90 },
   fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
