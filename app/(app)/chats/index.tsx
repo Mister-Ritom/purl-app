@@ -95,6 +95,7 @@ export default function ChatListScreen() {
     return (
       <UserListItem
         user={item.otherUser}
+        avatarUri={item.isGroup ? item.groupPhotoUrl : undefined}
         title={displayName}
         subtitle={item.preview}
         timestamp={item.lastMessage?.timestamp}

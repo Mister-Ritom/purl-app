@@ -20,6 +20,7 @@ interface UserListItemProps {
   rightElement?: React.ReactNode;
   onPress?: () => void;
   style?: ViewStyle;
+  avatarUri?: string;
 }
 
 export const UserListItem: React.FC<UserListItemProps> = ({
@@ -31,6 +32,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
   rightElement,
   onPress,
   style,
+  avatarUri,
 }) => {
   const status = useUserStatus(user?.uid);
   const displayName = title ?? user?.displayName ?? user?.username ?? 'Unknown';
@@ -42,7 +44,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
       activeOpacity={0.7}
     >
       <Avatar
-        uri={user?.photoURL}
+        uri={avatarUri ?? user?.photoURL}
         name={displayName}
         size="md"
         online={status.online}

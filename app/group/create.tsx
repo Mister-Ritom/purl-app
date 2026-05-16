@@ -1,25 +1,55 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useAuthStore } from '../../src/store/authStore';
+import { useChatStore } from '../../src/store/chatStore';
 import { useConversations } from '../../src/hooks/useConversations';
 import { Avatar } from '../../src/components/common/Avatar';
-import { createConversation } from '../../src/services/firestore';
+import { createConversation, fetchUserProfile } from '../../src/services/firestore';
 import { generateGroupKey, encryptGroupKey } from '../../src/services/encryption';
-import { COLORS, FONTS, SIZES } from '../../src/utils/constants';
+import { useTheme } from '../../src/hooks/useTheme';
+import { UserProfile } from '../../src/types/user';
+import { COLORS, FONTS } from '../../src/utils/constants';
 
 export default function CreateGroupScreen() {
-  const { userProfile, keyPair } = useAuthStore();
-  const { users } = useConversations(); // Assuming we have access to searchable users here
+  const { colors } = useTheme();
+  const { user, userProfile, keyPair } = useAuthStore();
+  const conversations = useConversations();
   
   const [groupName, setGroupName] = useState('');
   const [selectedUids, setSelectedUids] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [contacts, setContacts] = useState<UserProfile[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
 
-  // In a real app we'd fetch actual friends/contacts. Using mocked users for now
-  const availableUsers = Object.values(users).filter(u => u.id !== userProfile?.uid);
+  useEffect(() => {
+    async function loadContacts() {
+      if (!user) return;
+      try {
+        const uids = new Set<string>();
+        conversations.forEach(c => {
+          if (!c.isGroup) {
+            c.participants.forEach(p => {
+              if (p !== user.uid) uids.add(p);
+            });
+          }
+        });
+
+        const profiles = await Promise.all(
+          Array.from(uids).map(uid => fetchUserProfile(uid))
+        );
+        setContacts(profiles.filter((p): p is UserProfile => p !== null));
+      } catch (err) {
+        console.error('Error loading contacts:', err);
+      } finally {
+        setIsLoadingContacts(false);
+      }
+    }
+    loadContacts();
+  }, [conversations, user]);
 
   const toggleSelect = (uid: string) => {
     if (selectedUids.includes(uid)) {
@@ -38,29 +68,31 @@ export default function CreateGroupScreen() {
       Alert.alert('Error', 'Select at least one member');
       return;
     }
-    if (!userProfile || !keyPair) return;
+    if (!user || !userProfile || !keyPair) return;
 
     setIsCreating(true);
     try {
-      const allParticipants = [userProfile.uid, ...selectedUids];
+      const allParticipants = [user.uid, ...selectedUids];
       const groupKey = generateGroupKey();
       
       const encryptedGroupKeys: Record<string, any> = {};
       
       // Encrypt for self
-      encryptedGroupKeys[userProfile.uid] = encryptGroupKey(
-        groupKey, 
-        userProfile.publicKey, 
-        keyPair.privateKey
-      );
+      if (userProfile.publicKey) {
+        encryptedGroupKeys[user.uid] = encryptGroupKey(
+          groupKey, 
+          userProfile.publicKey, 
+          keyPair.privateKey
+        );
+      }
 
       // Encrypt for others
       for (const uid of selectedUids) {
-        const u = users[uid];
-        if (u?.publicKey) {
+        const contact = contacts.find(c => c.uid === uid);
+        if (contact?.publicKey) {
           encryptedGroupKeys[uid] = encryptGroupKey(
             groupKey,
-            u.publicKey,
+            contact.publicKey,
             keyPair.privateKey
           );
         }
@@ -68,9 +100,12 @@ export default function CreateGroupScreen() {
 
       const convId = await createConversation(allParticipants, true, {
         groupName: groupName.trim(),
-        admins: [userProfile.uid],
+        admins: [user.uid],
         encryptedGroupKeys
       });
+
+      // Cache the key locally
+      useChatStore.getState().cacheGroupKey(convId, groupKey);
 
       router.replace(`/chats/${convId}`);
     } catch (err: any) {
@@ -80,73 +115,83 @@ export default function CreateGroupScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={styles.header}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="close" size={24} color={COLORS.text} />
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Group</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>New Group</Text>
           <TouchableOpacity 
             style={[styles.createBtn, (isCreating || !groupName || selectedUids.length === 0) && { opacity: 0.5 }]}
             onPress={handleCreateGroup}
             disabled={isCreating || !groupName || selectedUids.length === 0}
           >
-            <Text style={styles.createBtnText}>Create</Text>
+            {isCreating ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={[styles.createBtnText, { color: colors.primary }]}>Create</Text>
+            )}
           </TouchableOpacity>
         </View>
 
-        <View style={styles.inputContainer}>
-          <View style={styles.avatarPlaceholder}>
-            <Ionicons name="camera" size={24} color={COLORS.textMuted} />
+        <View style={[styles.inputContainer, { borderBottomColor: colors.border }]}>
+          <View style={[styles.avatarPlaceholder, { backgroundColor: colors.surfaceElevated }]}>
+            <Ionicons name="camera" size={24} color={colors.textMuted} />
           </View>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.text }]}
             placeholder="Group Subject"
-            placeholderTextColor={COLORS.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={groupName}
             onChangeText={setGroupName}
             maxLength={25}
           />
         </View>
 
-        <View style={styles.selectionHeader}>
-          <Text style={styles.selectionTitle}>Add Members</Text>
-          <Text style={styles.selectionCount}>{selectedUids.length} selected</Text>
+        <View style={[styles.selectionHeader, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.selectionTitle, { color: colors.textSecondary }]}>Add Members</Text>
+          <Text style={[styles.selectionCount, { color: colors.primary }]}>{selectedUids.length} selected</Text>
         </View>
 
-        <FlatList
-          data={availableUsers}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => {
-            const isSelected = selectedUids.includes(item.id);
-            return (
-              <TouchableOpacity style={styles.userRow} onPress={() => toggleSelect(item.id)}>
-                <Avatar url={item.photoURL} name={item.displayName} size={48} />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.displayName}</Text>
-                  <Text style={styles.userUsername}>@{item.username}</Text>
-                </View>
-                <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                  {isSelected && <Ionicons name="checkmark" size={16} color={COLORS.background} />}
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No contacts found</Text>
-          }
-        />
+        {isLoadingContacts ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={contacts}
+            keyExtractor={item => item.uid}
+            renderItem={({ item }) => {
+              const isSelected = selectedUids.includes(item.uid);
+              return (
+                <TouchableOpacity 
+                  style={[styles.userRow, { borderBottomColor: colors.border }]} 
+                  onPress={() => toggleSelect(item.uid)}
+                >
+                  <Avatar uri={item.photoURL} name={item.displayName} size={48} />
+                  <View style={styles.userInfo}>
+                    <Text style={[styles.userName, { color: colors.text }]}>{item.displayName}</Text>
+                    <Text style={[styles.userUsername, { color: colors.textSecondary }]}>@{item.username}</Text>
+                  </View>
+                  <View style={[styles.checkbox, { borderColor: colors.border }, isSelected && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                    {isSelected && <Ionicons name="checkmark" size={16} color="white" />}
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            ListEmptyComponent={
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>No contacts found. Start a chat with someone to add them to a group.</Text>
+            }
+          />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -154,102 +199,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontFamily: FONTS.medium,
-  },
-  createBtn: {
-    padding: 4,
-  },
-  createBtnText: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-  },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: '700' },
+  createBtn: { padding: 4, minWidth: 60, alignItems: 'flex-end' },
+  createBtnText: { fontSize: 16, fontWeight: '700' },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   avatarPlaceholder: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.surfaceElevated,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
-  input: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 16,
-    fontFamily: FONTS.regular,
-  },
+  input: { flex: 1, fontSize: 16, fontWeight: '500' },
   selectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: COLORS.surface,
   },
-  selectionTitle: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-  },
-  selectionCount: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-  },
+  selectionTitle: { fontSize: 14, fontWeight: '600' },
+  selectionCount: { fontSize: 14, fontWeight: '600' },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
-  userInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  userName: {
-    color: COLORS.text,
-    fontSize: 16,
-    fontFamily: FONTS.medium,
-  },
-  userUsername: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    marginTop: 2,
-  },
+  userInfo: { flex: 1, marginLeft: 12 },
+  userName: { fontSize: 16, fontWeight: '600' },
+  userUsername: { fontSize: 14, marginTop: 2 },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  checkboxSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  emptyText: {
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: 40,
-    fontFamily: FONTS.regular,
-  },
+  emptyText: { textAlign: 'center', marginTop: 40, paddingHorizontal: 32 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

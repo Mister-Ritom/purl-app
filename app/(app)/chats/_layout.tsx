@@ -1,5 +1,6 @@
-import React from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
+import { TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../src/hooks/useTheme';
 
 export default function ChatsLayout() {
@@ -14,7 +15,21 @@ export default function ChatsLayout() {
         headerTitleStyle: { fontWeight: '800' },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Purl', headerShown: true }} />
+      <Stack.Screen 
+        name="index" 
+        options={{ 
+          title: 'Purl', 
+          headerShown: true,
+          headerRight: () => (
+            <TouchableOpacity 
+              onPress={() => router.push('/group/create')}
+              style={{ marginRight: 8 }}
+            >
+              <Ionicons name="people-outline" size={24} color={colors.primary} />
+            </TouchableOpacity>
+          )
+        }} 
+      />
     </Stack>
   );
 }
