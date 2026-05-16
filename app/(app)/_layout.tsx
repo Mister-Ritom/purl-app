@@ -24,7 +24,6 @@ export default function AppLayout() {
       minimizeBehavior="automatic"
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
-        headerShown: false, // Usually we handle headers in the screens themselves or they are native
       }}
     >
       <NativeTabs.Screen

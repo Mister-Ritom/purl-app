@@ -127,7 +127,8 @@
         }
       ],
       "expo-sharing",
-      "react-native-bottom-tabs"
+      "react-native-bottom-tabs",
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true

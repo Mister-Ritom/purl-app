@@ -8,11 +8,11 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  Image,
   Modal,
   ScrollView,
   Image as RNImage,
 } from "react-native";
+import { Image } from "expo-image";
 import { View, Text } from "../../src/components/Themed";
 import { useTheme } from "../../src/hooks/useTheme";
 import { router, useLocalSearchParams } from "expo-router";
@@ -846,12 +846,13 @@ export default function ConversationScreen() {
                         {m.mimeType.startsWith("image/") ? (
                           <View style={styles.flex}>
                             <Image
-                              source={{ uri: m.localCacheUri ?? m.url }}
+                              source={m.localCacheUri ?? m.url}
                               style={[
                                 styles.mediaGridImage,
                                 (item.isOptimistic || !isReady) && styles.blurredMedia,
                               ]}
-                              resizeMode="cover"
+                              contentFit="cover"
+                              onError={(e) => console.log("[expo-image] Error loading image:", e.error, "URI:", m.localCacheUri ?? m.url)}
                             />
                             {!isReady && !item.isOptimistic && (
                               <View style={styles.decryptOverlay}>
@@ -1327,11 +1328,12 @@ export default function ConversationScreen() {
 
           <ScrollView contentContainerStyle={styles.previewScroll}>
             {mediaToPreview.map((asset, i) => (
-              <RNImage
+              <Image
                 key={i}
                 source={{ uri: asset.uri }}
                 style={styles.previewImage}
-                resizeMode="contain"
+                contentFit="contain"
+                transition={200}
               />
             ))}
           </ScrollView>
@@ -1372,10 +1374,11 @@ export default function ConversationScreen() {
             <Text style={styles.fullscreenCloseText}>⎙</Text>
           </TouchableOpacity>
           {selectedImage && (
-            <RNImage
+            <Image
               source={{ uri: selectedImage }}
               style={styles.fullscreenImage}
-              resizeMode="contain"
+              contentFit="contain"
+              transition={200}
             />
           )}
         </View>
@@ -1444,18 +1447,19 @@ const MediaListImage = ({ uri }: { uri: string }) => {
     RNImage.getSize(
       uri,
       (w, h) => setAspectRatio(w / h),
-      () => setAspectRatio(1),
+      () => setAspectRatio(1)
     );
   }, [uri]);
 
   return (
     <Image
-      source={{ uri }}
+      source={uri}
       style={[
         styles.mediaListImage,
-        aspectRatio ? { aspectRatio } : { height: 300 },
+        aspectRatio ? { aspectRatio } : { height: 300 }
       ]}
-      resizeMode="contain"
+      contentFit="contain"
+      onError={(e) => console.log("[expo-image:modal] Error:", e.error, "URI:", uri)}
     />
   );
 };

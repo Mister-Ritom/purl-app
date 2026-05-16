@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { COLORS } from '../../../../src/utils/constants';
@@ -87,7 +88,7 @@ export default function StatusViewScreen() {
         {current.type === 'text' ? (
           <Text style={styles.statusText}>{current.content}</Text>
         ) : (
-          <Image source={{ uri: current.content }} style={styles.image} resizeMode="contain" />
+          <Image source={{ uri: current.content }} style={styles.image} contentFit="contain" transition={200} />
         )}
       </View>
 

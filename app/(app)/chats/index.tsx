@@ -21,6 +21,7 @@ import { decryptMessage, decryptWithGroupKey } from '../../../src/services/encry
 import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { UserProfile } from '../../../src/types/user';
 import { StoryBar } from '../../../src/components/chat/StoryBar';
+import { Image } from 'expo-image';
 
 export default function ChatListScreen() {
   const { colors } = useTheme();
@@ -45,6 +46,10 @@ export default function ChatListScreen() {
             const userDocSnap = await getDoc(doc(getFirestore(), 'users', otherUid));
             if (userDocSnap.exists()) otherUser = { uid: otherUid, ...userDocSnap.data() } as UserProfile;
           }
+        }
+
+        if (otherUser?.photoURL) {
+          Image.prefetch(otherUser.photoURL);
         }
 
         let preview = '';

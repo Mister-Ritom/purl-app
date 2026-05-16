@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  Image,
   StyleSheet,
   ViewStyle,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { View, Text, useThemeColor } from '../Themed';
 import { SIZES } from '../../utils/constants';
 
@@ -59,8 +59,9 @@ export const Avatar: React.FC<AvatarProps> = ({
     <View style={[styles.container, { width: dim, height: dim }, style]}>
       {uri ? (
         <Image
-          source={{ uri }}
+          source={uri}
           style={[styles.image, { width: dim, height: dim, borderRadius }]}
+          contentFit="cover"
         />
       ) : (
         <View
@@ -102,7 +103,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   image: {
-    resizeMode: 'cover',
   },
   placeholder: {
     alignItems: 'center',

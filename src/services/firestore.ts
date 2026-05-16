@@ -264,8 +264,8 @@ export async function addMemberToGroup(
 // --- AVATAR UPLOAD ---
 export async function uploadAvatar(uid: string, localUri: string): Promise<string> {
   const avatarStorageRef = storageRef(getStorage(), `avatars/${uid}/avatar.jpg`);
-  await avatarStorageRef.putFile(localUri);
-  const url = await avatarStorageRef.getDownloadURL();
+  await putFile(avatarStorageRef, localUri);
+  const url = await getDownloadURL(avatarStorageRef);
   const userDocRef = doc(getFirestore(), 'users', uid);
   await updateDoc(userDocRef, { photoURL: url });
   return url;

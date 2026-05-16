@@ -5,9 +5,12 @@ import {
   onMessage, 
   onNotificationOpenedApp, 
   getInitialNotification, 
+  getAPNSToken,
+  getToken,
+  onTokenRefresh,
   AuthorizationStatus,
 } from '@react-native-firebase/messaging';
-import firestore, { Timestamp } from '@react-native-firebase/firestore';
+import { getFirestore, doc, updateDoc, Timestamp } from '@react-native-firebase/firestore';
 import notifee, { AndroidImportance, AndroidVisibility, EventType } from '@notifee/react-native';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
@@ -163,19 +166,19 @@ export function setupNotifeeListeners(): () => void {
 export async function registerFcmToken(uid: string): Promise<void> {
   try {
     if (Platform.OS === 'ios') {
-      const apnsToken = await getMessaging().getAPNSToken();
+      const apnsToken = await getAPNSToken(getMessaging());
       if (!apnsToken) {
         console.warn('[Messaging] No APNS token yet. FCM registration will retry when token is available.');
         return;
       }
     }
 
-    const token = await getMessaging().getToken();
+    const token = await getToken(getMessaging());
     if (token) {
       await saveTokenToFirestore(uid, token);
     }
 
-    getMessaging().onTokenRefresh(async (newToken) => {
+    onTokenRefresh(getMessaging(), async (newToken) => {
       await saveTokenToFirestore(uid, newToken);
     });
   } catch (error: any) {
@@ -189,7 +192,8 @@ export async function registerFcmToken(uid: string): Promise<void> {
 
 async function saveTokenToFirestore(uid: string, token: string): Promise<void> {
   try {
-    await firestore().collection('users').doc(uid).update({
+    const db = getFirestore();
+    await updateDoc(doc(db, 'users', uid), {
       fcmToken: token,
       lastTokenUpdate: Timestamp.now(),
     });

@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Avatar } from '../common/Avatar';
 import { useTheme } from '../../hooks/useTheme';
 import { COLORS } from '../../utils/constants';
@@ -60,6 +60,9 @@ export const StoryBar: React.FC = () => {
         const unsub = subscribeToUserStatuses(uid, (items) => {
           if (items.length > 0) {
             statusMap[uid] = { user: userData, items };
+            if (userData.photoURL) {
+              Image.prefetch(userData.photoURL);
+            }
           } else {
             delete statusMap[uid];
           }

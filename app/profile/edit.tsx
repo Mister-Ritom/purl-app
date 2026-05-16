@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Image } from 'expo-image';
 import { View, Text, useThemeColor } from '../../src/components/Themed';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -88,7 +89,7 @@ export default function EditProfileScreen() {
           <View style={styles.avatarSection}>
             <TouchableOpacity onPress={handlePickImage} style={styles.avatarWrapper}>
               {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.avatar} />
+                <Image source={{ uri: photoUri }} style={styles.avatar} transition={200} />
               ) : (
                 <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: surfaceElevated }]}>
                   <Ionicons name="person" size={40} color={textSecondary} />
