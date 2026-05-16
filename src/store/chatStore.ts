@@ -28,17 +28,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeConvId: null,
   setConversations: (convs) => set({ conversations: convs }),
   addMessages: (convId, msgs) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [convId]: msgs,
-      },
-    })),
+    set((state) => {
+      const existingOptimistic = (state.messages[convId] ?? []).filter(m => m.isOptimistic);
+      // Filter out optimistic messages that are now present in the new msgs list (by checking some unique prop if possible, but for now we just keep them if they are not in msgs)
+      // Since optimistic IDs are temp_... and Firestore IDs are random, we can't easily match them without a correlation ID.
+      // However, we can just keep them. If they are marked isOptimistic: false elsewhere, they will be dropped next time if not in msgs.
+      
+      return {
+        messages: {
+          ...state.messages,
+          [convId]: [...existingOptimistic.filter(om => !msgs.some(m => m.id === om.id)), ...msgs],
+        },
+      };
+    }),
   prependMessages: (convId, msgs) =>
     set((state) => ({
       messages: {
         ...state.messages,
-        [convId]: [...(state.messages[convId] ?? []), ...msgs],
+        [convId]: [...msgs, ...(state.messages[convId] ?? [])],
       },
     })),
   updateMessage: (convId, msgId, update) =>

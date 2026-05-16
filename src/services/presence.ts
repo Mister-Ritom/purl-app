@@ -8,6 +8,9 @@ import {
   serverTimestamp as databaseTimestamp
 } from '@react-native-firebase/database';
 import { AppState, AppStateStatus } from 'react-native';
+import { FIREBASE_DATABASE_URL } from '../utils/constants';
+
+const db = () => getDatabase(undefined, FIREBASE_DATABASE_URL);
 
 let presenceInitialized = false;
 let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
@@ -16,8 +19,8 @@ export function initPresence(uid: string): () => void {
   if (presenceInitialized) return () => {};
   presenceInitialized = true;
 
-  const presenceRef = ref(getDatabase(), `presence/${uid}`);
-  const connectedRef = ref(getDatabase(), '.info/connected');
+  const presenceRef = ref(db(), `presence/${uid}`);
+  const connectedRef = ref(db(), '.info/connected');
 
   const connectedListener = onValue(connectedRef, (snap) => {
     if (snap.val()) {
@@ -47,7 +50,7 @@ export function initPresence(uid: string): () => void {
 // --- Typing Indicators ---
 
 export function setTypingStatus(convId: string, uid: string, isTyping: boolean) {
-  const typingRef = ref(getDatabase(), `typing/${convId}/${uid}`);
+  const typingRef = ref(db(), `typing/${convId}/${uid}`);
   if (isTyping) {
     set(typingRef, true);
     onDisconnect(typingRef).remove();
@@ -57,7 +60,7 @@ export function setTypingStatus(convId: string, uid: string, isTyping: boolean) 
 }
 
 export function subscribeToTyping(convId: string, currentUid: string, onData: (typingUids: string[]) => void): () => void {
-  const typingRef = ref(getDatabase(), `typing/${convId}`);
+  const typingRef = ref(db(), `typing/${convId}`);
   return onValue(typingRef, (snap) => {
     const val = snap.val();
     if (!val) {
@@ -77,10 +80,11 @@ export interface UserStatus {
 }
 
 export function subscribeToUserStatus(uid: string, onData: (status: UserStatus) => void): () => void {
-  const presenceRef = ref(getDatabase(), `presence/${uid}`);
+  const presenceRef = ref(db(), `presence/${uid}`);
   return onValue(presenceRef, (snap) => {
     const val = snap.val();
     onData(val || { online: false });
   });
 }
+
 

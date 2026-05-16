@@ -8,7 +8,7 @@
     "scheme": "purl",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./icon.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -27,8 +27,13 @@
           "voip",
           "audio",
           "fetch",
+          "remote-notification",
+          "voip",
+          "audio",
+          "fetch",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -36,19 +41,25 @@
       "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_CONTACTS",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "USE_FULL_SCREEN_INTENT",
-        "FOREGROUND_SERVICE",
-        "POST_NOTIFICATIONS"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_CONTACTS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.WRITE_CONTACTS"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       }
     },
@@ -86,8 +97,9 @@
       [
         "expo-notifications",
         {
-          "icon": "./icon.png",
-          "color": "#6C63FF"
+          "icon": "./assets/adaptive-icon.png",
+          "color": "#6C63FF",
+          "defaultChannel": "default"
         }
       ],
       [
@@ -101,7 +113,16 @@
         {
           "ios": {
             "useFrameworks": "static",
-            "buildReactNativeFromSource": true
+            "buildReactNativeFromSource": true,
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableProguardInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": true
           }
         }
       ],
@@ -116,8 +137,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "placeholder-update-after-eas-init"
+        "projectId": "2f5eb737-6872-4b84-81a3-663a1448ff30"
       }
-    }
+    },
+    "owner": "ritomg"
   }
 }

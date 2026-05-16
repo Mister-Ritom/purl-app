@@ -20,6 +20,7 @@ import { Conversation } from '../../../src/types/conversation';
 import { decryptMessage, decryptWithGroupKey } from '../../../src/services/encryption';
 import { getFirestore, doc, getDoc } from '@react-native-firebase/firestore';
 import { UserProfile } from '../../../src/types/user';
+import { StoryBar } from '../../../src/components/chat/StoryBar';
 
 export default function ChatListScreen() {
   const { colors } = useTheme();
@@ -122,6 +123,7 @@ export default function ChatListScreen() {
           data={enrichedConvs}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          ListHeaderComponent={<StoryBar />}
           windowSize={5}
           maxToRenderPerBatch={10}
           removeClippedSubviews

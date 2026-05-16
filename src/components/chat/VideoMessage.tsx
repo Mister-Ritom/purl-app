@@ -1,27 +1,32 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView, VideoContentFit } from 'expo-video';
 import { COLORS } from '../../utils/constants';
 
 interface VideoMessageProps {
   uri: string;
   isOwn: boolean;
+  style?: any;
+  contentFit?: VideoContentFit;
 }
 
-export const VideoMessage: React.FC<VideoMessageProps> = ({ uri, isOwn }) => {
+export const VideoMessage: React.FC<VideoMessageProps> = ({ 
+  uri, 
+  isOwn, 
+  style,
+  contentFit = 'cover'
+}) => {
   const player = useVideoPlayer(uri, (player) => {
     player.loop = false;
     player.muted = false;
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       <VideoView
         style={styles.video}
         player={player}
-        allowsFullscreen
-        allowsPictureInPicture
-        contentFit="cover"
+        contentFit={contentFit}
       />
       {!player.playing && (
         <TouchableOpacity 

@@ -87,8 +87,8 @@ export default function ConversationScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
-  const [uploadingProgress, setUploadingProgress] = useState<
-    Record<string, number>
+  const [uploadingStatus, setUploadingStatus] = useState<
+    Record<string, { progress: number; phase: string }>
   >({});
   const [mediaToPreview, setMediaToPreview] = useState<
     ImagePicker.ImagePickerAsset[]
@@ -277,6 +277,24 @@ export default function ConversationScreen() {
     setSending(true);
     onStopTyping();
 
+    const tempId = `temp_${Date.now()}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      senderId: user.uid,
+      type: "text",
+      encryptedContent: "", // Not used for display
+      decryptedContent: text,
+      nonce: "",
+      reactions: {},
+      readBy: {},
+      deletedFor: [],
+      deletedForEveryone: false,
+      timestamp: Timestamp.now() as any,
+      isOptimistic: true,
+    };
+
+    useChatStore.getState().prependMessages(convId, [optimisticMsg]);
+
     try {
       const { ciphertext, nonce } = encryptMessage(activeKey, text);
       await sendMessage(convId, {
@@ -290,9 +308,14 @@ export default function ConversationScreen() {
         deletedForEveryone: false,
         timestamp: serverTimestamp() as any,
       });
+      // The Firestore snapshot will handle removing the optimistic message 
+      // if we handle it in the store, but for now we just mark it as not optimistic
+      useChatStore.getState().updateMessage(convId, tempId, { isOptimistic: false });
     } catch (err) {
       Alert.alert("Send failed", "Message could not be sent.");
       setInputText(text);
+      // Remove optimistic message on error
+      useChatStore.getState().updateMessage(convId, tempId, { isError: true });
     } finally {
       setSending(false);
     }
@@ -337,7 +360,8 @@ export default function ConversationScreen() {
         id: tempId,
         senderId: user!.uid,
         type: "media",
-        encryptedContent: caption || "Media",
+        encryptedContent: "",
+        decryptedContent: caption || "Media",
         nonce: "",
         mediaItems: assets.map((a) => ({
           url: a.uri,
@@ -361,12 +385,24 @@ export default function ConversationScreen() {
 
       for (let i = 0; i < assets.length; i++) {
         const asset = assets[i];
+        const statusKey = `${tempId}_${i}`;
         console.log(`[Media] Processing item ${i} — URI:`, asset.uri);
+        
+        setUploadingStatus((prev) => ({
+          ...prev,
+          [statusKey]: { progress: 0, phase: "Encrypting" },
+        }));
+
         const { encryptedBytes, nonce } = await encryptFile(
           activeKey!,
           asset.uri,
         );
         console.log(`[Media] Item ${i} encrypted. Uploading...`);
+
+        setUploadingStatus((prev) => ({
+          ...prev,
+          [statusKey]: { progress: 0, phase: "Uploading" },
+        }));
 
         const fileName = `${Date.now()}_${user!.uid}_${i}.enc`;
         const url = await uploadEncryptedMedia(
@@ -374,13 +410,18 @@ export default function ConversationScreen() {
           fileName,
           encryptedBytes,
           (p) => {
-            setUploadingProgress((prev) => ({
+            setUploadingStatus((prev) => ({
               ...prev,
-              [`${tempId}_${i}`]: p,
+              [statusKey]: { progress: p, phase: "Uploading" },
             }));
           },
         );
         console.log(`[Media] Item ${i} upload complete. URL:`, url);
+
+        setUploadingStatus((prev) => ({
+          ...prev,
+          [statusKey]: { progress: 1, phase: "Finalizing" },
+        }));
 
         uploadedItems.push({
           url,
@@ -417,8 +458,8 @@ export default function ConversationScreen() {
         .getState()
         .updateMessage(convId!, tempId, { isOptimistic: false });
 
-      // Clear progress after success
-      setUploadingProgress((prev) => {
+      // Clear status after success
+      setUploadingStatus((prev) => {
         const next = { ...prev };
         assets.forEach((_, i) => delete next[`${tempId}_${i}`]);
         return next;
@@ -444,7 +485,8 @@ export default function ConversationScreen() {
         id: tempId,
         senderId: user.uid,
         type: "document",
-        encryptedContent: file.name,
+        encryptedContent: "",
+        decryptedContent: file.name,
         nonce: "",
         mediaItems: [
           {
@@ -465,16 +507,20 @@ export default function ConversationScreen() {
       };
       useChatStore.getState().prependMessages(convId, [optimisticMsg]);
 
+      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Encrypting" } }));
       const { encryptedBytes, nonce } = await encryptFile(activeKey, file.uri);
+      
+      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Uploading" } }));
       const fileName = `${Date.now()}_${user.uid}.enc`;
       const url = await uploadEncryptedMedia(
         convId,
         fileName,
         encryptedBytes,
         (p) => {
-          setUploadingProgress((prev) => ({ ...prev, [tempId]: p }));
+          setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: p, phase: "Uploading" } }));
         },
       );
+      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 1, phase: "Finalizing" } }));
       const { ciphertext, nonce: encNonce } = encryptMessage(
         activeKey,
         file.name,
@@ -570,7 +616,8 @@ export default function ConversationScreen() {
         id: tempId,
         senderId: user.uid,
         type: "audio",
-        encryptedContent: "Voice message",
+        encryptedContent: "",
+        decryptedContent: "Voice message",
         nonce: "",
         mediaItems: [
           {
@@ -590,16 +637,20 @@ export default function ConversationScreen() {
       };
       useChatStore.getState().prependMessages(convId, [optimisticMsg]);
 
+      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Encrypting" } }));
       const { encryptedBytes, nonce } = await encryptFile(activeKey, uri);
+      
+      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Uploading" } }));
       const fileName = `${Date.now()}_${user.uid}.enc`;
       const url = await uploadEncryptedMedia(
         convId,
         fileName,
         encryptedBytes,
         (p) => {
-          setUploadingProgress((prev) => ({ ...prev, [tempId]: p }));
+          setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: p, phase: "Uploading" } }));
         },
       );
+      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 1, phase: "Finalizing" } }));
       const { ciphertext: encContent, nonce: encNonce } = encryptMessage(
         activeKey,
         "audio",
@@ -827,7 +878,11 @@ export default function ConversationScreen() {
                           <View style={styles.uploadOverlay}>
                             <ActivityIndicator size="small" color="#fff" />
                             <Text style={styles.progressText}>
-                              {Math.round((uploadingProgress[`${item.id}_${idx}`] || 0) * 100)}%
+                              {uploadingStatus[`${item.id}_${idx}`]?.phase === "Encrypting" 
+                                ? "Encrypting..." 
+                                : uploadingStatus[`${item.id}_${idx}`]?.phase === "Finalizing"
+                                  ? "Finalizing..."
+                                  : `${Math.round((uploadingStatus[`${item.id}_${idx}`]?.progress || 0) * 100)}%`}
                             </Text>
                           </View>
                         )}
@@ -875,8 +930,17 @@ export default function ConversationScreen() {
                                 >
                                   {docItem.fileName || "Document"}
                                 </Text>
-                                {!docItem.localCacheUri && !item.isOptimistic && (
+                                 {!docItem.localCacheUri && !item.isOptimistic && (
                                   <Text style={styles.decryptTextSmall}>Decrypting...</Text>
+                                )}
+                                {item.isOptimistic && (
+                                  <Text style={styles.decryptTextSmall}>
+                                    {uploadingStatus[item.id]?.phase === "Encrypting" 
+                                      ? "Encrypting..." 
+                                      : uploadingStatus[item.id]?.phase === "Finalizing"
+                                        ? "Finalizing..."
+                                        : `${Math.round((uploadingStatus[item.id]?.progress || 0) * 100)}% Uploading`}
+                                  </Text>
                                 )}
                               </View>
                             </TouchableOpacity>
@@ -903,7 +967,13 @@ export default function ConversationScreen() {
                                       isOwn ? { color: "#fff" } : { color: colors.textSecondary },
                                     ]}
                                   >
-                                    {item.isOptimistic ? "Uploading..." : "Decrypting voice..."}
+                                    {item.isOptimistic 
+                                      ? (uploadingStatus[item.id]?.phase === "Encrypting" 
+                                          ? "Encrypting..." 
+                                          : uploadingStatus[item.id]?.phase === "Finalizing"
+                                            ? "Finalizing..."
+                                            : `${Math.round((uploadingStatus[item.id]?.progress || 0) * 100)}% Uploading`)
+                                      : "Decrypting voice..."}
                                   </Text>
                                 </View>
                               )}
@@ -1356,16 +1426,7 @@ export default function ConversationScreen() {
                     <MediaListImage uri={m.localCacheUri ?? m.url} />
                   </TouchableOpacity>
                 ) : (
-                  <View style={styles.mediaListVideo}>
-                    {m.localCacheUri ? (
-                      <VideoMessage uri={m.localCacheUri} isOwn={false} />
-                    ) : (
-                      <View style={styles.videoPlaceholderGrid}>
-                        <ActivityIndicator size="small" color="#fff" />
-                        <Text style={styles.decryptText}>Decrypting...</Text>
-                      </View>
-                    )}
-                  </View>
+                  <MediaListVideo uri={m.localCacheUri ?? m.url} />
                 )}
               </View>
             ))}
@@ -1375,7 +1436,6 @@ export default function ConversationScreen() {
     </View>
   );
 }
-
 
 // Internal helper for media list to handle dynamic aspect ratios
 const MediaListImage = ({ uri }: { uri: string }) => {
@@ -1400,6 +1460,16 @@ const MediaListImage = ({ uri }: { uri: string }) => {
   );
 };
 
+const MediaListVideo = ({ uri }: { uri: string }) => {
+  return (
+    <VideoMessage
+      uri={uri}
+      isOwn={false}
+      style={styles.mediaListVideo}
+      contentFit="contain"
+    />
+  );
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

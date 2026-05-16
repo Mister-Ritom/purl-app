@@ -11,6 +11,7 @@ interface AvatarProps {
   uri?: string | null;
   name?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  shape?: 'circle' | 'square';
   online?: boolean;
   style?: ViewStyle;
 }
@@ -43,6 +44,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   uri,
   name,
   size = 'md',
+  shape = 'circle',
   online,
   style,
 }) => {
@@ -51,13 +53,14 @@ export const Avatar: React.FC<AvatarProps> = ({
   const onlineDotSize = dim * 0.28;
   const dotColor = useThemeColor({}, online ? 'online' : 'textMuted');
   const borderColor = useThemeColor({}, 'background');
+  const borderRadius = shape === 'circle' ? dim / 2 : dim / 3;
 
   return (
     <View style={[styles.container, { width: dim, height: dim }, style]}>
       {uri ? (
         <Image
           source={{ uri }}
-          style={[styles.image, { width: dim, height: dim, borderRadius: dim / 2 }]}
+          style={[styles.image, { width: dim, height: dim, borderRadius }]}
         />
       ) : (
         <View
@@ -66,7 +69,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             {
               width: dim,
               height: dim,
-              borderRadius: dim / 2,
+              borderRadius,
               backgroundColor: getColorForName(name),
             },
           ]}

@@ -49,7 +49,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
       />
       <View style={styles.content}>
         <View style={styles.topRow}>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text style={[styles.name, unreadCount ? styles.nameUnread : undefined]} numberOfLines={1}>
             {displayName}
           </Text>
           {timestamp && (
@@ -103,6 +103,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     marginRight: 8,
+  },
+  nameUnread: {
+    fontWeight: '800',
   },
   time: {
     fontSize: 12,
