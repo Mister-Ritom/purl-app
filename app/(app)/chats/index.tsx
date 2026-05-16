@@ -5,7 +5,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { View, Text } from '../../../src/components/Themed';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -30,6 +32,7 @@ export default function ChatListScreen() {
   const { getSharedSecretFromCache, getGroupKeyFromCache } = useChatStore();
   const [enrichedConvs, setEnrichedConvs] = useState<(Conversation & { otherUser?: UserProfile; preview: string })[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
     enrichConversations();
@@ -86,6 +89,17 @@ export default function ChatListScreen() {
     setEnrichedConvs(result);
   }
 
+  const filteredConvs = React.useMemo(() => {
+    if (!searchText.trim()) return enrichedConvs;
+    const lower = searchText.toLowerCase();
+    return enrichedConvs.filter(conv => {
+      const name = conv.isGroup 
+        ? conv.groupName 
+        : (conv.otherUser?.displayName || conv.otherUser?.username);
+      return name?.toLowerCase().includes(lower);
+    });
+  }, [enrichedConvs, searchText]);
+
   const renderItem = ({ item }: { item: typeof enrichedConvs[0] }) => {
     const displayName = item.isGroup
       ? item.groupName ?? 'Group'
@@ -108,13 +122,18 @@ export default function ChatListScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Search bar */}
-      <TouchableOpacity
-        style={[styles.searchBar, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
-        onPress={() => router.push('/search')}
-        activeOpacity={0.8}
-      >
-        <Text style={[styles.searchText, { color: colors.textMuted }]}>🔍  Search users...</Text>
-      </TouchableOpacity>
+      <View style={styles.searchContainer}>
+        <TouchableOpacity 
+          style={[styles.searchBar, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+          onPress={() => router.push('/contacts')}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.searchIcon}>🔍</Text>
+          <Text style={[styles.placeholderText, { color: colors.textMuted }]}>
+            Search chats, contacts or global...
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {conversations.length === 0 ? (
         <EmptyState
@@ -126,7 +145,7 @@ export default function ChatListScreen() {
         />
       ) : (
         <FlatList
-          data={enrichedConvs}
+          data={filteredConvs}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           ListHeaderComponent={<StoryBar />}
@@ -156,12 +175,25 @@ export default function ChatListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  searchContainer: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
   searchBar: {
-    margin: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 44,
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     borderWidth: 1,
+    gap: 8,
+  },
+  searchIcon: { fontSize: 16 },
+  input: { flex: 1, fontSize: 16 },
+  placeholderText: {
+    flex: 1,
+    fontSize: 16,
   },
   searchText: { fontSize: 15 },
   separator: { height: 1, marginLeft: 76 },

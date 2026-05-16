@@ -133,6 +133,10 @@ export default function RootLayout() {
               options={{ presentation: "modal" }}
             />
             <Stack.Screen
+              name="contacts/index"
+              options={{ presentation: "modal" }}
+            />
+            <Stack.Screen
               name="group/create"
               options={{ presentation: "modal" }}
             />

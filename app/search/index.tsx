@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   TextInput,
   FlatList,
@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { View, Text } from '../../src/components/Themed';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { getFirestore, collection, query, where, limit, getDocs } from '@react-native-firebase/firestore';
 import { Avatar } from '../../src/components/common/Avatar';
 import { EmptyState } from '../../src/components/common/EmptyState';
@@ -19,9 +19,16 @@ const DEBOUNCE = 300;
 
 export default function SearchScreen() {
   const { colors } = useTheme();
-  const [searchText, setSearchText] = useState('');
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  const [searchText, setSearchText] = useState(q || '');
   const [results, setResults] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (q) {
+      performSearch(q);
+    }
+  }, [q]);
 
   const performSearch = async (text: string) => {
     if (!text.trim()) {

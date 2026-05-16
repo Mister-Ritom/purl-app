@@ -22,7 +22,7 @@ export default function ChatsLayout() {
           headerShown: true,
           headerRight: () => (
             <TouchableOpacity 
-              onPress={() => router.push('/group/create')}
+              onPress={() => router.push('/contacts')}
               style={{ marginRight: 8 }}
             >
               <Ionicons name="people-outline" size={24} color={colors.primary} />
