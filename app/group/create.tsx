@@ -169,7 +169,7 @@ export default function CreateGroupScreen() {
                   style={[styles.userRow, { borderBottomColor: colors.border }]} 
                   onPress={() => toggleSelect(item.uid)}
                 >
-                  <Avatar uri={item.photoURL} name={item.displayName} size={48} />
+                  <Avatar uri={item.photoURL} name={item.displayName} size="md" />
                   <View style={styles.userInfo}>
                     <Text style={[styles.userName, { color: colors.text }]}>{item.displayName}</Text>
                     <Text style={[styles.userUsername, { color: colors.textSecondary }]}>@{item.username}</Text>
