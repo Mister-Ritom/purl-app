@@ -11,6 +11,7 @@ import { View, Text } from '../../src/components/Themed';
 import { useTheme } from '../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { useInviteKeys } from '../../src/hooks/useInviteKeys';
@@ -80,7 +81,12 @@ export default function InviteKeysScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.headerRow}>
-        <Text style={styles.header}>Invite Keys</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={28} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.header}>Invite Keys</Text>
+        </View>
         <TouchableOpacity style={styles.scanBtn} onPress={() => router.push('/invite/scan')}>
           <Text style={{ fontSize: 24 }}>📷</Text>
         </TouchableOpacity>
@@ -144,6 +150,8 @@ export default function InviteKeysScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  backBtn: { padding: 4, marginLeft: -8 },
   header: { fontSize: 24, fontWeight: '800' },
   scanBtn: { padding: 8 },
   subtitle: { paddingHorizontal: 16, paddingBottom: 12, fontSize: 14 },

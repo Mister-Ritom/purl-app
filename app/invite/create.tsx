@@ -13,6 +13,7 @@ import { View, Text } from '../../src/components/Themed';
 import { useTheme } from '../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { getFirestore, doc, setDoc, Timestamp, serverTimestamp } from '@react-native-firebase/firestore';
 import { useAuthStore } from '../../src/store/authStore';
 import { generateInviteToken } from '../../src/utils/generateKey';
@@ -77,9 +78,15 @@ export default function CreateKeyScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={28} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Create Key</Text>
+        <View style={{ width: 28 }} />
+      </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.title}>Create Invite Key</Text>
 
           <Text style={styles.sectionLabel} type="textSecondary">Key Type</Text>
           <View style={[styles.segmented, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -154,8 +161,16 @@ export default function CreateKeyScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scroll: { padding: 20, gap: 20 },
-  title: { fontSize: 24, fontWeight: '800', marginBottom: 8 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800' },
+  scroll: { padding: 20, gap: 20, paddingTop: 10 },
   sectionLabel: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
   segmented: { flexDirection: 'row', borderRadius: 12, padding: 4, borderWidth: 1 },
   segmentBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },

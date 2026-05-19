@@ -72,7 +72,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { UserProfile } from "../../src/types/user";
 
 export default function ConversationScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { convId } = useLocalSearchParams<{ convId: string }>();
   const { user, keyPair } = useAuthStore();
@@ -308,9 +308,11 @@ export default function ConversationScreen() {
         deletedForEveryone: false,
         timestamp: serverTimestamp() as any,
       });
-      // The Firestore snapshot will handle removing the optimistic message 
+      // The Firestore snapshot will handle removing the optimistic message
       // if we handle it in the store, but for now we just mark it as not optimistic
-      useChatStore.getState().updateMessage(convId, tempId, { isOptimistic: false });
+      useChatStore
+        .getState()
+        .updateMessage(convId, tempId, { isOptimistic: false });
     } catch (err) {
       Alert.alert("Send failed", "Message could not be sent.");
       setInputText(text);
@@ -387,7 +389,7 @@ export default function ConversationScreen() {
         const asset = assets[i];
         const statusKey = `${tempId}_${i}`;
         console.log(`[Media] Processing item ${i} — URI:`, asset.uri);
-        
+
         setUploadingStatus((prev) => ({
           ...prev,
           [statusKey]: { progress: 0, phase: "Encrypting" },
@@ -507,20 +509,32 @@ export default function ConversationScreen() {
       };
       useChatStore.getState().prependMessages(convId, [optimisticMsg]);
 
-      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Encrypting" } }));
+      setUploadingStatus((prev) => ({
+        ...prev,
+        [tempId]: { progress: 0, phase: "Encrypting" },
+      }));
       const { encryptedBytes, nonce } = await encryptFile(activeKey, file.uri);
-      
-      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Uploading" } }));
+
+      setUploadingStatus((prev) => ({
+        ...prev,
+        [tempId]: { progress: 0, phase: "Uploading" },
+      }));
       const fileName = `${Date.now()}_${user.uid}.enc`;
       const url = await uploadEncryptedMedia(
         convId,
         fileName,
         encryptedBytes,
         (p) => {
-          setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: p, phase: "Uploading" } }));
+          setUploadingStatus((prev) => ({
+            ...prev,
+            [tempId]: { progress: p, phase: "Uploading" },
+          }));
         },
       );
-      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 1, phase: "Finalizing" } }));
+      setUploadingStatus((prev) => ({
+        ...prev,
+        [tempId]: { progress: 1, phase: "Finalizing" },
+      }));
       const { ciphertext, nonce: encNonce } = encryptMessage(
         activeKey,
         file.name,
@@ -637,20 +651,32 @@ export default function ConversationScreen() {
       };
       useChatStore.getState().prependMessages(convId, [optimisticMsg]);
 
-      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Encrypting" } }));
+      setUploadingStatus((prev) => ({
+        ...prev,
+        [tempId]: { progress: 0, phase: "Encrypting" },
+      }));
       const { encryptedBytes, nonce } = await encryptFile(activeKey, uri);
-      
-      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 0, phase: "Uploading" } }));
+
+      setUploadingStatus((prev) => ({
+        ...prev,
+        [tempId]: { progress: 0, phase: "Uploading" },
+      }));
       const fileName = `${Date.now()}_${user.uid}.enc`;
       const url = await uploadEncryptedMedia(
         convId,
         fileName,
         encryptedBytes,
         (p) => {
-          setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: p, phase: "Uploading" } }));
+          setUploadingStatus((prev) => ({
+            ...prev,
+            [tempId]: { progress: p, phase: "Uploading" },
+          }));
         },
       );
-      setUploadingStatus((prev) => ({ ...prev, [tempId]: { progress: 1, phase: "Finalizing" } }));
+      setUploadingStatus((prev) => ({
+        ...prev,
+        [tempId]: { progress: 1, phase: "Finalizing" },
+      }));
       const { ciphertext: encContent, nonce: encNonce } = encryptMessage(
         activeKey,
         "audio",
@@ -801,19 +827,32 @@ export default function ConversationScreen() {
               >
                 {item.decryptedContent ?? "🔒 Decrypting..."}
               </Text>
-            ) : (item.type === "media" || item.type === "document" || item.type === "audio") ? (
+            ) : item.type === "media" ||
+              item.type === "document" ||
+              item.type === "audio" ? (
               <View>
                 {(() => {
                   const mediaItems = item.mediaItems || [];
                   const imagesAndVideos = mediaItems.filter(
-                    (m) => m.mimeType.startsWith("image/") || m.mimeType.startsWith("video/")
+                    (m) =>
+                      m.mimeType.startsWith("image/") ||
+                      m.mimeType.startsWith("video/"),
                   );
                   const docs = mediaItems.filter(
-                    (m) => !m.mimeType.startsWith("image/") && !m.mimeType.startsWith("video/") && !m.mimeType.startsWith("audio/")
+                    (m) =>
+                      !m.mimeType.startsWith("image/") &&
+                      !m.mimeType.startsWith("video/") &&
+                      !m.mimeType.startsWith("audio/"),
                   );
-                  const audios = mediaItems.filter((m) => m.mimeType.startsWith("audio/"));
+                  const audios = mediaItems.filter((m) =>
+                    m.mimeType.startsWith("audio/"),
+                  );
 
-                  const renderMediaItem = (m: MediaItem, idx: number, total: number) => {
+                  const renderMediaItem = (
+                    m: MediaItem,
+                    idx: number,
+                    total: number,
+                  ) => {
                     const isReady = !!m.localCacheUri;
                     const isLast = idx === 3 && total > 4;
                     const remainingCount = total - 3;
@@ -849,27 +888,42 @@ export default function ConversationScreen() {
                               source={m.localCacheUri ?? m.url}
                               style={[
                                 styles.mediaGridImage,
-                                (item.isOptimistic || !isReady) && styles.blurredMedia,
+                                (item.isOptimistic || !isReady) &&
+                                  styles.blurredMedia,
                               ]}
                               contentFit="cover"
-                              onError={(e) => console.log("[expo-image] Error loading image:", e.error, "URI:", m.localCacheUri ?? m.url)}
+                              onError={(e) =>
+                                console.log(
+                                  "[expo-image] Error loading image:",
+                                  e.error,
+                                  "URI:",
+                                  m.localCacheUri ?? m.url,
+                                )
+                              }
                             />
                             {!isReady && !item.isOptimistic && (
                               <View style={styles.decryptOverlay}>
                                 <ActivityIndicator size="small" color="#fff" />
-                                <Text style={styles.decryptText}>Decrypting...</Text>
+                                <Text style={styles.decryptText}>
+                                  Decrypting...
+                                </Text>
                               </View>
                             )}
                           </View>
                         ) : (
                           <View style={styles.flex}>
                             {isReady ? (
-                              <VideoMessage uri={m.localCacheUri!} isOwn={isOwn} />
+                              <VideoMessage
+                                uri={m.localCacheUri!}
+                                isOwn={isOwn}
+                              />
                             ) : (
                               <View style={styles.videoPlaceholderGrid}>
                                 <ActivityIndicator size="small" color="#fff" />
                                 <Text style={styles.decryptText}>
-                                  {item.isOptimistic ? "Uploading..." : "Decrypting..."}
+                                  {item.isOptimistic
+                                    ? "Uploading..."
+                                    : "Decrypting..."}
                                 </Text>
                               </View>
                             )}
@@ -879,9 +933,11 @@ export default function ConversationScreen() {
                           <View style={styles.uploadOverlay}>
                             <ActivityIndicator size="small" color="#fff" />
                             <Text style={styles.progressText}>
-                              {uploadingStatus[`${item.id}_${idx}`]?.phase === "Encrypting" 
-                                ? "Encrypting..." 
-                                : uploadingStatus[`${item.id}_${idx}`]?.phase === "Finalizing"
+                              {uploadingStatus[`${item.id}_${idx}`]?.phase ===
+                              "Encrypting"
+                                ? "Encrypting..."
+                                : uploadingStatus[`${item.id}_${idx}`]
+                                      ?.phase === "Finalizing"
                                   ? "Finalizing..."
                                   : `${Math.round((uploadingStatus[`${item.id}_${idx}`]?.progress || 0) * 100)}%`}
                             </Text>
@@ -889,7 +945,9 @@ export default function ConversationScreen() {
                         )}
                         {isLast && (
                           <View style={styles.moreMediaOverlay}>
-                            <Text style={styles.moreMediaText}>+{remainingCount}</Text>
+                            <Text style={styles.moreMediaText}>
+                              +{remainingCount}
+                            </Text>
                           </View>
                         )}
                       </TouchableOpacity>
@@ -900,7 +958,11 @@ export default function ConversationScreen() {
                     <View style={styles.mediaContainer}>
                       {imagesAndVideos.length > 0 && (
                         <View style={styles.mediaGridWrapper}>
-                          {imagesAndVideos.slice(0, 4).map((m, idx) => renderMediaItem(m, idx, imagesAndVideos.length))}
+                          {imagesAndVideos
+                            .slice(0, 4)
+                            .map((m, idx) =>
+                              renderMediaItem(m, idx, imagesAndVideos.length),
+                            )}
                         </View>
                       )}
 
@@ -915,12 +977,22 @@ export default function ConversationScreen() {
                               ]}
                               onPress={() => {
                                 if (docItem.localCacheUri) {
-                                  openDocument(docItem.localCacheUri, docItem.fileName || undefined);
+                                  openDocument(
+                                    docItem.localCacheUri,
+                                    docItem.fileName || undefined,
+                                  );
                                 }
                               }}
                               disabled={!docItem.localCacheUri}
                             >
-                              <Text style={[styles.docIcon, { color: isOwn ? "#fff" : colors.primary }]}>📄</Text>
+                              <Text
+                                style={[
+                                  styles.docIcon,
+                                  { color: isOwn ? "#fff" : colors.primary },
+                                ]}
+                              >
+                                📄
+                              </Text>
                               <View style={styles.flex}>
                                 <Text
                                   style={[
@@ -931,14 +1003,19 @@ export default function ConversationScreen() {
                                 >
                                   {docItem.fileName || "Document"}
                                 </Text>
-                                 {!docItem.localCacheUri && !item.isOptimistic && (
-                                  <Text style={styles.decryptTextSmall}>Decrypting...</Text>
-                                )}
+                                {!docItem.localCacheUri &&
+                                  !item.isOptimistic && (
+                                    <Text style={styles.decryptTextSmall}>
+                                      Decrypting...
+                                    </Text>
+                                  )}
                                 {item.isOptimistic && (
                                   <Text style={styles.decryptTextSmall}>
-                                    {uploadingStatus[item.id]?.phase === "Encrypting" 
-                                      ? "Encrypting..." 
-                                      : uploadingStatus[item.id]?.phase === "Finalizing"
+                                    {uploadingStatus[item.id]?.phase ===
+                                    "Encrypting"
+                                      ? "Encrypting..."
+                                      : uploadingStatus[item.id]?.phase ===
+                                          "Finalizing"
                                         ? "Finalizing..."
                                         : `${Math.round((uploadingStatus[item.id]?.progress || 0) * 100)}% Uploading`}
                                   </Text>
@@ -954,7 +1031,10 @@ export default function ConversationScreen() {
                           {audios.map((audioItem, idx) => (
                             <View key={idx}>
                               {audioItem.localCacheUri ? (
-                                <AudioMessage uri={audioItem.localCacheUri} isOwn={isOwn} />
+                                <AudioMessage
+                                  uri={audioItem.localCacheUri}
+                                  isOwn={isOwn}
+                                />
                               ) : (
                                 <View style={styles.audioPlaceholder}>
                                   <ActivityIndicator
@@ -965,15 +1045,19 @@ export default function ConversationScreen() {
                                     style={[
                                       styles.decryptTextSmall,
                                       { marginLeft: 8 },
-                                      isOwn ? { color: "#fff" } : { color: colors.textSecondary },
+                                      isOwn
+                                        ? { color: "#fff" }
+                                        : { color: colors.textSecondary },
                                     ]}
                                   >
-                                    {item.isOptimistic 
-                                      ? (uploadingStatus[item.id]?.phase === "Encrypting" 
-                                          ? "Encrypting..." 
-                                          : uploadingStatus[item.id]?.phase === "Finalizing"
-                                            ? "Finalizing..."
-                                            : `${Math.round((uploadingStatus[item.id]?.progress || 0) * 100)}% Uploading`)
+                                    {item.isOptimistic
+                                      ? uploadingStatus[item.id]?.phase ===
+                                        "Encrypting"
+                                        ? "Encrypting..."
+                                        : uploadingStatus[item.id]?.phase ===
+                                            "Finalizing"
+                                          ? "Finalizing..."
+                                          : `${Math.round((uploadingStatus[item.id]?.progress || 0) * 100)}% Uploading`
                                       : "Decrypting voice..."}
                                   </Text>
                                 </View>
@@ -986,8 +1070,15 @@ export default function ConversationScreen() {
                       {item.decryptedContent &&
                         item.decryptedContent !== "media" &&
                         item.decryptedContent !== "audio" &&
-                        !docs.some(d => d.fileName === item.decryptedContent) && (
-                          <Text style={[styles.captionText, isOwn ? styles.ownText : styles.theirText]}>
+                        !docs.some(
+                          (d) => d.fileName === item.decryptedContent,
+                        ) && (
+                          <Text
+                            style={[
+                              styles.captionText,
+                              isOwn ? styles.ownText : styles.theirText,
+                            ]}
+                          >
                             {item.decryptedContent}
                           </Text>
                         )}
@@ -1447,7 +1538,7 @@ const MediaListImage = ({ uri }: { uri: string }) => {
     RNImage.getSize(
       uri,
       (w, h) => setAspectRatio(w / h),
-      () => setAspectRatio(1)
+      () => setAspectRatio(1),
     );
   }, [uri]);
 
@@ -1456,10 +1547,12 @@ const MediaListImage = ({ uri }: { uri: string }) => {
       source={uri}
       style={[
         styles.mediaListImage,
-        aspectRatio ? { aspectRatio } : { height: 300 }
+        aspectRatio ? { aspectRatio } : { height: 300 },
       ]}
       contentFit="contain"
-      onError={(e) => console.log("[expo-image:modal] Error:", e.error, "URI:", uri)}
+      onError={(e) =>
+        console.log("[expo-image:modal] Error:", e.error, "URI:", uri)
+      }
     />
   );
 };

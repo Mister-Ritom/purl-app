@@ -31,7 +31,7 @@ export default function AppLayout() {
         options={{
           title: "Chats",
           tabBarIcon: () => ({
-            sfSymbol: "bubble.left.and.bubble.right.fill",
+            sfSymbol: "bubble.left.and.bubble.right",
             materialSymbol: "chat",
           }),
         }}
