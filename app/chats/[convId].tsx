@@ -42,13 +42,8 @@ import {
   decryptGroupKey,
 } from "../../src/services/encryption";
 import * as Sharing from "expo-sharing";
-import {
-  useAudioPlayer,
-  useAudioRecorder,
-  RecordingPresets,
-  AudioModule,
-  AudioMode,
-} from "expo-audio";
+import { useSoundRecorderWithStates } from "react-native-nitro-sound";
+import { usePermissions } from "../../src/hooks/usePermissions";
 import { encodeBase64 } from "tweetnacl-util";
 import { VideoMessage } from "../../src/components/chat/VideoMessage";
 import { AudioMessage } from "../../src/components/chat/AudioMessage";
@@ -85,6 +80,8 @@ export default function ConversationScreen() {
   const [activeKey, setActiveKey] = useState<Uint8Array | null>(null);
   const [encryptionError, setEncryptionError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingLoading, setIsRecordingLoading] = useState(false);
+  const { requestPermission: requestMicrophonePermission } = usePermissions("microphone");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
   const [uploadingStatus, setUploadingStatus] = useState<
@@ -108,7 +105,9 @@ export default function ConversationScreen() {
   } = useChatStore();
 
   const { messages, loading } = useMessages(convId!, conversation);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useSoundRecorderWithStates({
+    subscriptionDuration: 0.1,
+  });
   const { typingUids, onTyping, onStopTyping } = useTypingIndicator(convId!);
   const userStatus = useUserStatus(otherUser?.uid);
   const flatListRef = useRef<FlatList>(null);
@@ -597,117 +596,131 @@ export default function ConversationScreen() {
   };
 
   const startRecording = async () => {
+    if (isRecordingLoading || isRecording) return;
     try {
-      const { status } = await AudioModule.requestRecordingPermissionsAsync();
-      if (status !== "granted") {
+      setIsRecordingLoading(true);
+      const hasPermission = await requestMicrophonePermission();
+      if (!hasPermission) {
         Alert.alert(
           "Permission denied",
           "Audio recording permission is required.",
         );
+        setIsRecordingLoading(false);
         return;
       }
-      await AudioModule.setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
       setIsRecording(true);
-      recorder.record();
+      await recorder.startRecorder();
     } catch (err) {
       console.error("Failed to start recording", err);
+      setIsRecording(false);
+      Alert.alert("Error", "Failed to start audio recording.");
+    } finally {
+      setIsRecordingLoading(false);
     }
   };
 
   const stopAndSendAudio = async () => {
+    if (isRecordingLoading) return;
     if (!isRecording) return;
-    setIsRecording(false);
-    recorder.stop();
-    const uri = recorder.uri;
-    if (!uri || !activeKey || !user || !convId) return;
-
-    const tempId = `temp_${Date.now()}`;
     try {
-      const optimisticMsg: Message = {
-        id: tempId,
-        senderId: user.uid,
-        type: "audio",
-        encryptedContent: "",
-        decryptedContent: "Voice message",
-        nonce: "",
-        mediaItems: [
-          {
-            url: uri,
-            mimeType: "audio/m4a",
-            nonce: "",
-            localCacheUri: uri,
-            duration: Math.floor(recorder.currentTime / 1000),
+      setIsRecordingLoading(true);
+      setIsRecording(false);
+      const uri = await recorder.stopRecorder();
+      if (!uri || !activeKey || !user || !convId) {
+        setIsRecordingLoading(false);
+        return;
+      }
+
+      const tempId = `temp_${Date.now()}`;
+      try {
+        const optimisticMsg: Message = {
+          id: tempId,
+          senderId: user.uid,
+          type: "audio",
+          encryptedContent: "",
+          decryptedContent: "Voice message",
+          nonce: "",
+          mediaItems: [
+            {
+              url: uri,
+              mimeType: "audio/m4a",
+              nonce: "",
+              localCacheUri: uri,
+              duration: Math.floor(recorder.state.currentPosition / 1000),
+            },
+          ],
+          timestamp: Timestamp.now() as any,
+          reactions: {},
+          readBy: {},
+          deletedFor: [],
+          deletedForEveryone: false,
+          isOptimistic: true,
+        };
+        useChatStore.getState().prependMessages(convId, [optimisticMsg]);
+
+        setUploadingStatus((prev) => ({
+          ...prev,
+          [tempId]: { progress: 0, phase: "Encrypting" },
+        }));
+        const { encryptedBytes, nonce } = await encryptFile(activeKey, uri);
+
+        setUploadingStatus((prev) => ({
+          ...prev,
+          [tempId]: { progress: 0, phase: "Uploading" },
+        }));
+        const fileName = `${Date.now()}_${user.uid}.enc`;
+        const url = await uploadEncryptedMedia(
+          convId,
+          fileName,
+          encryptedBytes,
+          (p) => {
+            setUploadingStatus((prev) => ({
+              ...prev,
+              [tempId]: { progress: p, phase: "Uploading" },
+            }));
           },
-        ],
-        timestamp: Timestamp.now() as any,
-        reactions: {},
-        readBy: {},
-        deletedFor: [],
-        deletedForEveryone: false,
-        isOptimistic: true,
-      };
-      useChatStore.getState().prependMessages(convId, [optimisticMsg]);
+        );
+        setUploadingStatus((prev) => ({
+          ...prev,
+          [tempId]: { progress: 1, phase: "Finalizing" },
+        }));
+        const { ciphertext: encContent, nonce: encNonce } = encryptMessage(
+          activeKey,
+          "audio",
+        );
 
-      setUploadingStatus((prev) => ({
-        ...prev,
-        [tempId]: { progress: 0, phase: "Encrypting" },
-      }));
-      const { encryptedBytes, nonce } = await encryptFile(activeKey, uri);
-
-      setUploadingStatus((prev) => ({
-        ...prev,
-        [tempId]: { progress: 0, phase: "Uploading" },
-      }));
-      const fileName = `${Date.now()}_${user.uid}.enc`;
-      const url = await uploadEncryptedMedia(
-        convId,
-        fileName,
-        encryptedBytes,
-        (p) => {
-          setUploadingStatus((prev) => ({
-            ...prev,
-            [tempId]: { progress: p, phase: "Uploading" },
-          }));
-        },
-      );
-      setUploadingStatus((prev) => ({
-        ...prev,
-        [tempId]: { progress: 1, phase: "Finalizing" },
-      }));
-      const { ciphertext: encContent, nonce: encNonce } = encryptMessage(
-        activeKey,
-        "audio",
-      );
-
-      await sendMessage(convId, {
-        senderId: user.uid,
-        type: "audio",
-        encryptedContent: encContent,
-        nonce: encNonce,
-        mediaItems: [
-          {
-            url,
-            mimeType: "audio/m4a",
-            nonce: encodeBase64(nonce),
-            duration: Math.floor(recorder.currentTime / 1000),
-            size: 0,
-          },
-        ],
-        reactions: {},
-        readBy: {},
-        deletedFor: [],
-        deletedForEveryone: false,
-        timestamp: serverTimestamp() as any,
-      });
-      useChatStore
-        .getState()
-        .updateMessage(convId, tempId, { isOptimistic: false });
+        await sendMessage(convId, {
+          senderId: user.uid,
+          type: "audio",
+          encryptedContent: encContent,
+          nonce: encNonce,
+          mediaItems: [
+            {
+              url,
+              mimeType: "audio/m4a",
+              nonce: encodeBase64(nonce),
+              duration: Math.floor(recorder.state.currentPosition / 1000),
+              size: 0,
+            },
+          ],
+          reactions: {},
+          readBy: {},
+          deletedFor: [],
+          deletedForEveryone: false,
+          timestamp: serverTimestamp() as any,
+        });
+        useChatStore
+          .getState()
+          .updateMessage(convId, tempId, { isOptimistic: false });
+      } catch (err) {
+        useChatStore.getState().updateMessage(convId, tempId, { isError: true });
+        Alert.alert("Upload failed", "Could not send voice message.");
+      }
     } catch (err) {
-      useChatStore.getState().updateMessage(convId, tempId, { isError: true });
-      Alert.alert("Upload failed", "Could not send voice message.");
+      console.error("Failed to stop recording:", err);
+      Alert.alert("Error", "Failed to stop recording.");
+    } finally {
+      setIsRecordingLoading(false);
     }
   };
 
@@ -1326,11 +1339,20 @@ export default function ConversationScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={[styles.sendBtn, isRecording && styles.recordingBtn]}
+                style={[
+                  styles.sendBtn,
+                  isRecording && styles.recordingBtn,
+                  isRecordingLoading && styles.sendBtnDisabled,
+                ]}
                 onPressIn={startRecording}
                 onPressOut={stopAndSendAudio}
+                disabled={isRecordingLoading}
               >
-                <Text style={styles.sendIcon}>{isRecording ? "⏹" : "🎤"}</Text>
+                {isRecordingLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.sendIcon}>{isRecording ? "⏹" : "🎤"}</Text>
+                )}
               </TouchableOpacity>
             )}
           </View>

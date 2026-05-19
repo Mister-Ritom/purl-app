@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useAudioPlayer } from 'expo-audio';
+import { useSoundWithStates } from 'react-native-nitro-sound';
 import { COLORS } from '../../utils/constants';
 
 interface AudioMessageProps {
@@ -9,22 +9,36 @@ interface AudioMessageProps {
 }
 
 export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, isOwn }) => {
-  const player = useAudioPlayer(uri);
-  const [status, setStatus] = useState({
-    playing: false,
-    duration: 0,
-    currentTime: 0,
+  const {
+    state,
+    startPlayer,
+    pausePlayer,
+    resumePlayer,
+  } = useSoundWithStates({
+    subscriptionDuration: 0.05, // 50ms updates
   });
 
-  // Since expo-audio might not have a simple status listener like expo-av yet,
-  // we might need to poll or use the provided event listeners if available.
-  // Based on the search results, the API is object-oriented.
-  
-  const togglePlay = () => {
-    if (player.playing) {
-      player.pause();
-    } else {
-      player.play();
+  const [hasStarted, setHasStarted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const togglePlay = async () => {
+    if (isLoading) return;
+    try {
+      setIsLoading(true);
+      if (state.isPlaying) {
+        await pausePlayer();
+      } else {
+        if (hasStarted && state.playback.position > 0 && state.playback.position < state.playback.duration) {
+          await resumePlayer();
+        } else {
+          await startPlayer(uri);
+          setHasStarted(true);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to toggle playback:", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -35,22 +49,29 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, isOwn }) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  const currentPosition = state.playback.position;
+  const duration = state.playback.duration || 1; // Prevent division by zero
+
   return (
     <View style={[styles.container, isOwn ? styles.ownContainer : styles.theirContainer]}>
-      <TouchableOpacity onPress={togglePlay} style={styles.playBtn}>
-        <Text style={styles.playIcon}>{player.playing ? '⏸' : '▶'}</Text>
+      <TouchableOpacity onPress={togglePlay} style={styles.playBtn} disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.playIcon}>{state.isPlaying ? '⏸' : '▶'}</Text>
+        )}
       </TouchableOpacity>
       <View style={styles.waveformContainer}>
         <View style={styles.progressBar}>
           <View 
             style={[
               styles.progress, 
-              { width: `${(player.currentTime / player.duration) * 100}%` || '0%' }
+              { width: `${(currentPosition / duration) * 100}%` }
             ]} 
           />
         </View>
         <Text style={[styles.timeText, isOwn ? styles.ownText : styles.theirText]}>
-          {formatTime(player.currentTime)} / {formatTime(player.duration)}
+          {formatTime(currentPosition)} / {formatTime(state.playback.duration || 0)}
         </Text>
       </View>
     </View>

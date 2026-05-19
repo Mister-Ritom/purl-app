@@ -94,14 +94,7 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/adaptive-icon.png",
-          "color": "#6C63FF",
-          "defaultChannel": "default"
-        }
-      ],
+
       [
         "expo-contacts",
         {
@@ -118,8 +111,8 @@
           },
           "android": {
             "minSdkVersion": 26,
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
             "enableShrinkResourcesInReleaseBuilds": true,
             "enableProguardInReleaseBuilds": true,
             "enableMinifyInReleaseBuilds": true

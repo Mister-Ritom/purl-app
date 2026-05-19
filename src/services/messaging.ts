@@ -2,6 +2,7 @@ import {
   getMessaging, 
   setBackgroundMessageHandler, 
   requestPermission, 
+  hasPermission,
   onMessage, 
   onNotificationOpenedApp, 
   getInitialNotification, 
@@ -9,6 +10,7 @@ import {
   getToken,
   onTokenRefresh,
   AuthorizationStatus,
+  registerDeviceForRemoteMessages,
 } from '@react-native-firebase/messaging';
 import { getFirestore, doc, updateDoc, Timestamp } from '@react-native-firebase/firestore';
 import notifee, { AndroidImportance, AndroidVisibility, EventType } from '@notifee/react-native';
@@ -77,13 +79,6 @@ export async function setupNotifeeChannels(): Promise<void> {
 
 // ─── Foreground messaging setup ───────────────────────────────────────────────
 export async function setupMessaging(): Promise<void> {
-  const authStatus = await requestPermission(getMessaging());
-  const enabled =
-    authStatus === AuthorizationStatus.AUTHORIZED ||
-    authStatus === AuthorizationStatus.PROVISIONAL;
-
-  if (!enabled) return;
-
   // Foreground message handler
   onMessage(getMessaging(), async (remoteMessage) => {
     await handleIncomingFCMMessage(remoteMessage);
@@ -98,6 +93,43 @@ export async function setupMessaging(): Promise<void> {
   const initialNotification = await getInitialNotification(getMessaging());
   if (initialNotification) {
     setTimeout(() => handleNotificationTap(initialNotification.data), 1000);
+  }
+}
+
+// ─── Notification Permission Helpers ──────────────────────────────────────────
+export async function checkNotificationPermission(): Promise<boolean> {
+  try {
+    const authStatus = await hasPermission(getMessaging()) as any;
+    return (
+      authStatus === AuthorizationStatus.AUTHORIZED ||
+      authStatus === AuthorizationStatus.PROVISIONAL ||
+      authStatus === 1 ||
+      authStatus === 2 ||
+      authStatus === true
+    );
+  } catch (error) {
+    console.error('[Messaging] Failed to check notification permission:', error);
+    return false;
+  }
+}
+
+export async function requestNotificationPermission(): Promise<boolean> {
+  try {
+    if (Platform.OS === 'ios') {
+      await registerDeviceForRemoteMessages(getMessaging());
+    }
+    const authStatus = await requestPermission(getMessaging()) as any;
+    const enabled =
+      authStatus === AuthorizationStatus.AUTHORIZED ||
+      authStatus === AuthorizationStatus.PROVISIONAL ||
+      authStatus === 1 ||
+      authStatus === 2 ||
+      authStatus === true;
+
+    return enabled;
+  } catch (error) {
+    console.error('[Messaging] Failed to request notification permission:', error);
+    return false;
   }
 }
 
