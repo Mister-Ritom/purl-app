@@ -15,6 +15,7 @@ import {
   getDoc,
   collection,
   query,
+  where,
   orderBy,
   limit as firestoreLimit,
   onSnapshot,
@@ -129,6 +130,7 @@ export default function ProfileScreen() {
 
     const q = query(
       collection(getFirestore(), 'conversations', conversationId, 'messages'),
+      where('type', 'in', ['image', 'video', 'audio', 'document', 'media']),
       orderBy('timestamp', 'desc'),
       firestoreLimit(100)
     );
@@ -144,10 +146,10 @@ export default function ProfileScreen() {
         ...docSnap.data(),
       })) as Message[];
 
-      // Filter active, non-deleted messages with media
+      // Filter active, non-deleted messages (type filtering is now done on Firestore!)
       const mediaMsgs = msgs.filter((msg) => {
         const isDeleted = msg.deletedForEveryone || msg.deletedFor?.includes(user.uid);
-        return !isDeleted && msg.mediaItems && msg.mediaItems.length > 0;
+        return !isDeleted;
       });
 
       const allMediaItems: MediaItem[] = [];
