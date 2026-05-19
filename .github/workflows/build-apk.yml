@@ -38,9 +38,10 @@ jobs:
       - name: Expo Prebuild
         run: bunx expo prebuild --platform android --no-install
 
-      - name: Configure build.gradle for Debug Signing on Release
+      - name: Configure Android Project for CI Build
         run: |
           sed -i 's/signingConfig null/signingConfig signingConfigs.debug/g' android/app/build.gradle
+          echo "org.gradle.jvmargs=-Xmx4g -XX:+UseG1GC" >> android/gradle.properties
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
