@@ -4,7 +4,7 @@ import { withLayoutContext } from "expo-router";
 import { createNativeBottomTabNavigator } from "@bottom-tabs/react-navigation";
 import { Alert } from "react-native";
 import { createMMKV } from "react-native-mmkv";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { getImageSourceSync } from "react-native-vector-icons/Ionicons";
 
 import { useAuthStore } from "../../src/store/authStore";
 import { LoadingScreen } from "../../src/components/common/LoadingScreen";
@@ -87,7 +87,7 @@ export default function AppLayout() {
         name="chats"
         options={{
           title: "Chats",
-          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+          tabBarIcon: ({ focused }) => getImageSourceSync(
             focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline",
             24,
             focused ? colors.primary : colors.textSecondary
@@ -99,7 +99,7 @@ export default function AppLayout() {
         name="status"
         options={{
           title: "Status",
-          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+          tabBarIcon: ({ focused }) => getImageSourceSync(
             focused ? "aperture" : "aperture-outline",
             24,
             focused ? colors.primary : colors.textSecondary
@@ -111,7 +111,7 @@ export default function AppLayout() {
         name="calls"
         options={{
           title: "Calls",
-          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+          tabBarIcon: ({ focused }) => getImageSourceSync(
             focused ? "call" : "call-outline",
             24,
             focused ? colors.primary : colors.textSecondary
@@ -123,7 +123,7 @@ export default function AppLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+          tabBarIcon: ({ focused }) => getImageSourceSync(
             focused ? "settings" : "settings-outline",
             24,
             focused ? colors.primary : colors.textSecondary
