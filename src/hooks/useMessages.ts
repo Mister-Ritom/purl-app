@@ -24,7 +24,10 @@ export function useMessages(convId: string, conversation: Conversation | null) {
 
   const decrypt = (msg: Message): Message => {
     if (!keyPair || !conversation) return msg;
-    if (msg.decryptedContent) return msg; 
+    if (msg.decryptedContent || msg.isOptimistic || !msg.encryptedContent) return msg; 
+    if (msg.isError) {
+      return { ...msg, decryptedContent: "🔒 Decryption failed" };
+    }
     
     try {
       let decryptedContent: string | null = null;
@@ -34,6 +37,10 @@ export function useMessages(convId: string, conversation: Conversation | null) {
         key = groupKeyCache[convId] || null;
         if (key) {
           decryptedContent = decryptWithGroupKey(key, msg.encryptedContent, msg.nonce);
+          if (decryptedContent === null) {
+            msg.isError = true;
+            msg.decryptedContent = "🔒 Decryption failed";
+          }
         }
       } else {
         const otherUid = conversation.participants.find((p) => p !== uid);
@@ -41,14 +48,24 @@ export function useMessages(convId: string, conversation: Conversation | null) {
           key = sharedSecretCache[otherUid] || null;
           if (key) {
             decryptedContent = decryptMessage(key, msg.encryptedContent, msg.nonce);
+            if (decryptedContent === null) {
+              msg.isError = true;
+              msg.decryptedContent = "🔒 Decryption failed";
+            }
           }
         }
       }
 
-      return { ...msg, decryptedContent: decryptedContent ?? undefined };
+      if (decryptedContent !== null) {
+        msg.decryptedContent = decryptedContent;
+      }
+
+      return { ...msg, decryptedContent: msg.decryptedContent, isError: msg.isError };
     } catch (e) {
       console.warn('[useMessages] Decryption failed for message:', msg.id, e);
-      return msg;
+      msg.isError = true;
+      msg.decryptedContent = "🔒 Decryption failed";
+      return { ...msg, decryptedContent: msg.decryptedContent, isError: true };
     }
   };
 
@@ -176,7 +193,7 @@ export function useMessages(convId: string, conversation: Conversation | null) {
 
     unsubRef.current = unsub;
     return () => unsub();
-  }, [convId, conversation]); // Added conversation to deps
+  }, [convId, uid]);
 
   return {
     messages: processedMessages,

@@ -18,6 +18,7 @@ interface ChatStore {
   getGroupKeyFromCache: (convId: string) => Uint8Array | undefined;
   setActiveConvId: (id: string | null) => void;
   clearMessages: (convId: string) => void;
+  removeMessage: (convId: string, msgId: string) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -29,15 +30,33 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setConversations: (convs) => set({ conversations: convs }),
   addMessages: (convId, msgs) =>
     set((state) => {
-      const existingOptimistic = (state.messages[convId] ?? []).filter(m => m.isOptimistic);
-      // Filter out optimistic messages that are now present in the new msgs list (by checking some unique prop if possible, but for now we just keep them if they are not in msgs)
-      // Since optimistic IDs are temp_... and Firestore IDs are random, we can't easily match them without a correlation ID.
-      // However, we can just keep them. If they are marked isOptimistic: false elsewhere, they will be dropped next time if not in msgs.
+      const existing = state.messages[convId] ?? [];
+      const existingOptimistic = existing.filter(m => m.isOptimistic);
+      
+      // Merge local states (decryptedContent, isError, localCacheUri) to prevent them being wiped out by Firestore syncs
+      const mergedMsgs = msgs.map(incoming => {
+        const old = existing.find(m => m.id === incoming.id);
+        if (old) {
+          return {
+            ...incoming,
+            decryptedContent: old.decryptedContent ?? incoming.decryptedContent,
+            isError: old.isError ?? incoming.isError,
+            mediaItems: incoming.mediaItems?.map((incomingMedia, i) => {
+              const oldMedia = old.mediaItems?.[i];
+              return {
+                ...incomingMedia,
+                localCacheUri: oldMedia?.localCacheUri ?? incomingMedia.localCacheUri
+              };
+            })
+          };
+        }
+        return incoming;
+      });
       
       return {
         messages: {
           ...state.messages,
-          [convId]: [...existingOptimistic.filter(om => !msgs.some(m => m.id === om.id)), ...msgs],
+          [convId]: [...existingOptimistic.filter(om => !mergedMsgs.some(m => m.id === om.id)), ...mergedMsgs],
         },
       };
     }),
@@ -73,4 +92,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const { [convId]: _, ...rest } = state.messages;
       return { messages: rest };
     }),
+  removeMessage: (convId, msgId) =>
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [convId]: (state.messages[convId] ?? []).filter((m) => m.id !== msgId),
+      },
+    })),
 }));

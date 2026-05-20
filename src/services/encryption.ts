@@ -28,6 +28,20 @@ export async function getOrCreateKeyPair(uid: string): Promise<KeyPair> {
     const stored = await Keychain.getGenericPassword({ service: KEYCHAIN_SERVICE_ENCRYPTION });
     if (stored) {
       const { username: pubKeyB64, password: privKeyB64 } = stored;
+      console.warn(`[getOrCreateKeyPair] Loaded existing keys for ${uid}. PubKey: ${pubKeyB64}`);
+      
+      // Self-healing: verify Firestore has this exact public key
+      try {
+        const userDocRef = doc(getFirestore(), 'users', uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (!userDocSnap.exists() || userDocSnap.data()?.publicKey !== pubKeyB64) {
+          console.warn(`[getOrCreateKeyPair] Self-healing: Updating Firestore with local public key!`);
+          await setDoc(userDocRef, { publicKey: pubKeyB64 }, { merge: true });
+        }
+      } catch (e) {
+        console.error('[getOrCreateKeyPair] Self-healing failed:', e);
+      }
+
       return {
         publicKey: decodeBase64(pubKeyB64),
         privateKey: decodeBase64(privKeyB64),
@@ -48,11 +62,8 @@ export async function getOrCreateKeyPair(uid: string): Promise<KeyPair> {
 
   try {
     const userDocRef = doc(getFirestore(), 'users', uid);
-    const userDocSnap = await getDoc(userDocRef);
-    // Only write if no publicKey exists yet — never overwrite to avoid destroying old chats
-    if (!userDocSnap.exists() || !userDocSnap.data()?.publicKey) {
-      await setDoc(userDocRef, { publicKey: pubKeyB64 }, { merge: true });
-    }
+    // Always write the new public key so others can communicate with this new device/keypair
+    await setDoc(userDocRef, { publicKey: pubKeyB64 }, { merge: true });
   } catch (error) {
     console.error('[getOrCreateKeyPair] Failed to sync public key to Firestore:', error);
   }
@@ -65,13 +76,20 @@ export function getSharedSecret(
   theirUid: string,
   theirPublicKeyBase64: string
 ): Uint8Array {
-  const cacheKey = `ss_${theirUid}`;
+  const cacheKey = `ss_${theirUid}_${theirPublicKeyBase64}`;
   const cached = mmkv.getString(cacheKey);
-  if (cached) return decodeBase64(cached);
+  if (cached) {
+    console.warn(`[getSharedSecret] CACHED for ${theirUid}. TheirPub: ${theirPublicKeyBase64} | Secret: ${cached}`);
+    return decodeBase64(cached);
+  }
 
   const theirPublicKey = decodeBase64(theirPublicKeyBase64);
   const secret = nacl.box.before(theirPublicKey, myPrivateKey);
-  mmkv.set(cacheKey, encodeBase64(secret));
+  const secretB64 = encodeBase64(secret);
+  mmkv.set(cacheKey, secretB64);
+  
+  console.warn(`[getSharedSecret] GENERATED for ${theirUid}. MyPriv: ${encodeBase64(myPrivateKey)} | TheirPub: ${theirPublicKeyBase64} | Secret: ${secretB64}`);
+  
   return secret;
 }
 
@@ -96,9 +114,13 @@ export function decryptMessage(
     const ciphertext = decodeBase64(ciphertextBase64);
     const nonce = decodeBase64(nonceBase64);
     const decrypted = nacl.secretbox.open(ciphertext, nonce, sharedSecret);
-    if (!decrypted) return null;
+    if (!decrypted) {
+      console.warn(`[decryptMessage] FAILED (AUTH MISMATCH). Secret: ${encodeBase64(sharedSecret)} | Cipher: ${ciphertextBase64.substring(0, 20)}... | Nonce: ${nonceBase64}`);
+      return null;
+    }
     return encodeUTF8(decrypted);
-  } catch {
+  } catch (err) {
+    console.warn(`[decryptMessage] ERROR THROWN:`, err);
     return null;
   }
 }

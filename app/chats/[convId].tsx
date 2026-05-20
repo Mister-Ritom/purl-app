@@ -330,6 +330,9 @@ export default function ConversationScreen() {
 
     try {
       const { ciphertext, nonce } = encryptMessage(activeKey, text);
+      
+      useChatStore.getState().removeMessage(convId, tempId);
+
       await sendMessage(convId, {
         senderId: user.uid,
         type: "text",
@@ -341,16 +344,11 @@ export default function ConversationScreen() {
         deletedForEveryone: false,
         timestamp: serverTimestamp() as any,
       });
-      // The Firestore snapshot will handle removing the optimistic message
-      // if we handle it in the store, but for now we just mark it as not optimistic
-      useChatStore
-        .getState()
-        .updateMessage(convId, tempId, { isOptimistic: false });
     } catch (err) {
       Alert.alert("Send failed", "Message could not be sent.");
       setInputText(text);
       // Remove optimistic message on error
-      useChatStore.getState().updateMessage(convId, tempId, { isError: true });
+      useChatStore.getState().removeMessage(convId, tempId);
     } finally {
       setSending(false);
     }
@@ -363,7 +361,7 @@ export default function ConversationScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: 10,
@@ -943,28 +941,32 @@ export default function ConversationScreen() {
                       >
                         {m.mimeType.startsWith("image/") ? (
                           <View style={styles.flex}>
-                            <Image
-                              source={m.localCacheUri ?? m.url}
-                              style={[
-                                styles.mediaGridImage,
-                                (item.isOptimistic || !isReady) &&
-                                  styles.blurredMedia,
-                              ]}
-                              contentFit="cover"
-                              onError={(e) =>
-                                console.log(
-                                  "[expo-image] Error loading image:",
-                                  e.error,
-                                  "URI:",
-                                  m.localCacheUri ?? m.url,
-                                )
-                              }
-                            />
+                            {m.localCacheUri ? (
+                              <Image
+                                source={m.localCacheUri}
+                                style={[
+                                  styles.mediaGridImage,
+                                  (item.isOptimistic || !isReady) &&
+                                    styles.blurredMedia,
+                                ]}
+                                contentFit="cover"
+                                onError={(e) =>
+                                  console.log(
+                                    "[expo-image] Error loading image:",
+                                    e.error,
+                                    "URI:",
+                                    m.localCacheUri,
+                                  )
+                                }
+                              />
+                            ) : (
+                              <View style={styles.mediaGridImage} />
+                            )}
                             {!isReady && !item.isOptimistic && (
                               <View style={styles.decryptOverlay}>
                                 <ActivityIndicator size="small" color="#fff" />
                                 <Text style={styles.decryptText}>
-                                  Decrypting...
+                                  {item.isError ? "Decryption failed" : "Decrypting..."}
                                 </Text>
                               </View>
                             )}
