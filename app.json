@@ -33,7 +33,10 @@
           "fetch",
           "remote-notification"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIAppFonts": [
+          "Ionicons.ttf"
+        ]
       }
     },
     "android": {
@@ -120,6 +123,16 @@
         }
       ],
       "expo-sharing",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              "./node_modules/react-native-vector-icons/Fonts/Ionicons.ttf"
+            ]
+          }
+        }
+      ],
       "react-native-bottom-tabs",
       "expo-image",
       [

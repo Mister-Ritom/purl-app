@@ -4,6 +4,7 @@ import { withLayoutContext } from "expo-router";
 import { createNativeBottomTabNavigator } from "@bottom-tabs/react-navigation";
 import { Alert } from "react-native";
 import { createMMKV } from "react-native-mmkv";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 import { useAuthStore } from "../../src/store/authStore";
 import { LoadingScreen } from "../../src/components/common/LoadingScreen";
@@ -86,10 +87,11 @@ export default function AppLayout() {
         name="chats"
         options={{
           title: "Chats",
-          tabBarIcon: () => ({
-            sfSymbol: "bubble.left.and.bubble.right",
-            materialSymbol: "chat",
-          }),
+          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+            focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline",
+            24,
+            focused ? colors.primary : colors.textSecondary
+          ),
         }}
       />
 
@@ -97,10 +99,11 @@ export default function AppLayout() {
         name="status"
         options={{
           title: "Status",
-          tabBarIcon: () => ({
-            sfSymbol: "circle.dashed",
-            materialSymbol: "published_with_changes",
-          }),
+          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+            focused ? "aperture" : "aperture-outline",
+            24,
+            focused ? colors.primary : colors.textSecondary
+          ),
         }}
       />
 
@@ -108,10 +111,11 @@ export default function AppLayout() {
         name="calls"
         options={{
           title: "Calls",
-          tabBarIcon: () => ({
-            sfSymbol: "phone.fill",
-            materialSymbol: "call",
-          }),
+          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+            focused ? "call" : "call-outline",
+            24,
+            focused ? colors.primary : colors.textSecondary
+          ),
         }}
       />
 
@@ -119,10 +123,11 @@ export default function AppLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: () => ({
-            sfSymbol: "gearshape.fill",
-            materialSymbol: "settings",
-          }),
+          tabBarIcon: ({ focused }) => Ionicons.getImageSourceSync(
+            focused ? "settings" : "settings-outline",
+            24,
+            focused ? colors.primary : colors.textSecondary
+          ),
         }}
       />
     </NativeTabs>
