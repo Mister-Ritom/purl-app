@@ -40,7 +40,14 @@ export function hashUidToNumber(uid: string): number {
 }
 
 export default function CallScreen() {
-  const { callId } = useLocalSearchParams<{ callId: string }>();
+  const { callId, isOutgoing, receiverId, receiverName, receiverPhoto, type } = useLocalSearchParams<{
+    callId: string;
+    isOutgoing?: string;
+    receiverId?: string;
+    receiverName?: string;
+    receiverPhoto?: string;
+    type?: string;
+  }>();
   const { user } = useAuthStore();
   const {
     activeCall, callStatus, isAudioMuted, isVideoMuted, isSpeakerOn, remoteUid,
@@ -52,6 +59,50 @@ export default function CallScreen() {
   const [callDuration, setCallDuration] = useState(0);
 
   useEffect(() => {
+    if (callId === 'outgoing' && receiverId) {
+      setOtherUser({
+        uid: receiverId,
+        displayName: receiverName || 'User',
+        photoURL: receiverPhoto || '',
+      } as any);
+      setCallStatus('connecting');
+    }
+  }, [callId, receiverId, receiverName, receiverPhoto]);
+
+  useEffect(() => {
+    if (callId !== 'outgoing' || !receiverId) return;
+
+    let active = true;
+    const initiate = async () => {
+      try {
+        const result = await httpsCallable(getFunctions(), 'initiateCall')({
+          receiverIds: [receiverId],
+          type: type || 'voice',
+        });
+        const { callId: realCallId } = result.data as { callId: string };
+        if (active) {
+          router.replace({
+            pathname: `/call/${realCallId}`,
+            params: { type },
+          } as any);
+        }
+      } catch (err: any) {
+        console.error('[CallScreen] initiateCall error:', err);
+        Alert.alert('Call Failed', err.message ?? 'Could not initiate call.');
+        router.back();
+      }
+    };
+
+    initiate();
+
+    return () => {
+      active = false;
+    };
+  }, [callId, receiverId, type]);
+
+  useEffect(() => {
+    if (!callId || callId === 'outgoing') return;
+
     loadCallAndJoin();
     
     // Listen for call status changes (e.g., other user declined or ended)
@@ -88,7 +139,7 @@ export default function CallScreen() {
   }, [callStatus, activeCall?.status]);
 
   async function loadCallAndJoin() {
-    if (!callId || !user) return;
+    if (!callId || callId === 'outgoing' || !user) return;
     try {
       const callDocRef = doc(getFirestore(), 'calls', callId);
       const callDocSnap = await getDoc(callDocRef);
@@ -159,11 +210,13 @@ export default function CallScreen() {
 
   const handleEndCall = async () => {
     leaveCall();
-    await updateDoc(doc(getFirestore(), 'calls', callId), {
-      status: 'ended',
-      endedAt: serverTimestamp(),
-      duration: callDuration,
-    }).catch(() => {});
+    if (callId !== 'outgoing') {
+      await updateDoc(doc(getFirestore(), 'calls', callId), {
+        status: 'ended',
+        endedAt: serverTimestamp(),
+        duration: callDuration,
+      }).catch(() => {});
+    }
     reset();
     router.back();
   };
@@ -183,7 +236,7 @@ export default function CallScreen() {
     toggleSpeakerState();
   };
 
-  const isVideo = activeCall?.type === 'video';
+  const isVideo = activeCall?.type === 'video' || type === 'video';
   const displayName = otherUser?.displayName ?? otherUser?.username ?? 'Unknown';
 
   return (

@@ -11,7 +11,9 @@ import {
   Modal,
   ScrollView,
   Image as RNImage,
+  Animated,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { View, Text } from "../../src/components/Themed";
 import { useTheme } from "../../src/hooks/useTheme";
@@ -71,6 +73,38 @@ export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const { convId } = useLocalSearchParams<{ convId: string }>();
   const { user, keyPair } = useAuthStore();
+
+  // Animation values for call buttons
+  const voiceScale = useRef(new Animated.Value(1)).current;
+  const videoScale = useRef(new Animated.Value(1)).current;
+
+  const handleVoicePressIn = () => {
+    Animated.spring(voiceScale, {
+      toValue: 0.9,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleVoicePressOut = () => {
+    Animated.spring(voiceScale, {
+      toValue: 1.0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleVideoPressIn = () => {
+    Animated.spring(videoScale, {
+      toValue: 0.9,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleVideoPressOut = () => {
+    Animated.spring(videoScale, {
+      toValue: 1.0,
+      useNativeDriver: true,
+    }).start();
+  };
 
   // State
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -1206,51 +1240,49 @@ export default function ConversationScreen() {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.headerBtn}
-            onPress={async () => {
-              if (!otherUser || sending) return;
-              try {
-                const result = await httpsCallable(
-                  getFunctions(),
-                  "initiateCall",
-                )({
-                  receiverIds: [otherUser.uid],
+            onPressIn={handleVoicePressIn}
+            onPressOut={handleVoicePressOut}
+            onPress={() => {
+              if (!otherUser) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push({
+                pathname: `/call/outgoing`,
+                params: {
+                  isOutgoing: "true",
+                  receiverId: otherUser.uid,
+                  receiverName: displayName,
+                  receiverPhoto: otherUser.photoURL ?? "",
                   type: "voice",
-                });
-                const { callId } = result.data as { callId: string };
-                router.push({
-                  pathname: `/call/${callId}`,
-                  params: { type: "voice" },
-                } as any);
-              } catch (err) {
-                Alert.alert("Call failed", "Could not start voice call.");
-              }
+                },
+              } as any);
             }}
           >
-            <Text style={styles.headerBtnIcon}>📞</Text>
+            <Animated.View style={{ transform: [{ scale: voiceScale }] }}>
+              <Text style={styles.headerBtnIcon}>📞</Text>
+            </Animated.View>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerBtn}
-            onPress={async () => {
-              if (!otherUser || sending) return;
-              try {
-                const result = await httpsCallable(
-                  getFunctions(),
-                  "initiateCall",
-                )({
-                  receiverIds: [otherUser.uid],
+            onPressIn={handleVideoPressIn}
+            onPressOut={handleVideoPressOut}
+            onPress={() => {
+              if (!otherUser) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push({
+                pathname: `/call/outgoing`,
+                params: {
+                  isOutgoing: "true",
+                  receiverId: otherUser.uid,
+                  receiverName: displayName,
+                  receiverPhoto: otherUser.photoURL ?? "",
                   type: "video",
-                });
-                const { callId } = result.data as { callId: string };
-                router.push({
-                  pathname: `/call/${callId}`,
-                  params: { type: "video" },
-                } as any);
-              } catch (err) {
-                Alert.alert("Call failed", "Could not start video call.");
-              }
+                },
+              } as any);
             }}
           >
-            <Text style={styles.headerBtnIcon}>📹</Text>
+            <Animated.View style={{ transform: [{ scale: videoScale }] }}>
+              <Text style={styles.headerBtnIcon}>📹</Text>
+            </Animated.View>
           </TouchableOpacity>
         </View>
       </View>
