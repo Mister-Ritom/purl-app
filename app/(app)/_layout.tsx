@@ -4,7 +4,8 @@ import { withLayoutContext } from "expo-router";
 import { createNativeBottomTabNavigator } from "@bottom-tabs/react-navigation";
 import { Alert } from "react-native";
 import { createMMKV } from "react-native-mmkv";
-import { getImageSourceSync } from "react-native-vector-icons/Ionicons";
+import Ionicons from "react-native-vector-icons/dist/Ionicons";
+const { getImageSourceSync } = Ionicons;
 
 import { useAuthStore } from "../../src/store/authStore";
 import { LoadingScreen } from "../../src/components/common/LoadingScreen";
