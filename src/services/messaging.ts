@@ -198,9 +198,17 @@ export function setupNotifeeListeners(): () => void {
 export async function registerFcmToken(uid: string): Promise<void> {
   try {
     if (Platform.OS === 'ios') {
-      const apnsToken = await getAPNSToken(getMessaging());
-      if (!apnsToken) {
-        console.warn('[Messaging] No APNS token yet. FCM registration will retry when token is available.');
+      try {
+        const apnsToken = await getAPNSToken(getMessaging());
+        if (!apnsToken) {
+          console.warn('[Messaging] No APNS token yet. FCM registration will retry when token is available.');
+          return;
+        }
+      } catch (apnsError: any) {
+        console.warn(
+          '[Messaging] APNS token retrieval failed (expected on simulators or unpaid developer accounts):',
+          apnsError.message || apnsError
+        );
         return;
       }
     }

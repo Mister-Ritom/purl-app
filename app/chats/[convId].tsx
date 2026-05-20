@@ -323,8 +323,13 @@ export default function ConversationScreen() {
   }, [inputText, activeKey, user, convId, sending]);
 
   const pickAndSendMedia = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission required", "Allow access to photos to share media.");
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: 10,
@@ -334,13 +339,20 @@ export default function ConversationScreen() {
   };
 
   const takePhotoOrVideo = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert('Permission required', 'Allow access to camera to take photos/videos.');
+      return;
+    }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ['images', 'videos'],
       quality: 0.8,
     });
     if (result.canceled || !activeKey || !user || !convId) return;
     setMediaToPreview(result.assets);
   };
+
+  // Removed stray JSX opening tag that was misplaced
 
   const sendMediaWithCaption = async () => {
     const assets = [...mediaToPreview];
@@ -1247,7 +1259,7 @@ export default function ConversationScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={insets.bottom}
       >
         {encryptionError && (
           <View style={styles.encryptionBanner}>

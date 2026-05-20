@@ -11,7 +11,7 @@ import {
 import { View, Text } from '../../src/components/Themed';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 import { useAuthStore } from '../../src/store/authStore';
 import { useConversations } from '../../src/hooks/useConversations';
 import { UserListItem } from '../../src/components/common/UserListItem';
