@@ -35,6 +35,18 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Cache Android build folders
+        uses: actions/cache@v4
+        with:
+          path: |
+            android/.gradle
+            android/build
+            android/app/build
+            android/app/.cxx
+          key: ${{ runner.os }}-android-build-${{ hashFiles('bun.lock', 'app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-android-build-
+
       - name: Expo Prebuild
         run: bunx expo prebuild --platform android --no-install
 
@@ -44,6 +56,8 @@ jobs:
         run: |
           sed -i 's/signingConfig null/signingConfig signingConfigs.debug/g' android/app/build.gradle
           echo "org.gradle.jvmargs=-Xmx4g -XX:+UseG1GC" >> android/gradle.properties
+          echo "org.gradle.caching=true" >> android/gradle.properties
+          echo "org.gradle.parallel=true" >> android/gradle.properties
           echo "$ANDROID_DEBUG_KEYSTORE_B64" | base64 -d > android/app/debug.keystore
 
 
@@ -55,6 +69,7 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease
+
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
