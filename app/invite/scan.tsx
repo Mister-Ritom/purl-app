@@ -71,7 +71,7 @@ export default function ScanScreen() {
         const keyRef = doc(db, 'inviteKeys', clean);
         const keySnap = await transaction.get(keyRef);
 
-        if (!keySnap.exists) throw new Error('Invite key not found.');
+        if (!keySnap.exists()) throw new Error('Invite key not found.');
         const keyData = keySnap.data()!;
 
         if (!keyData.isActive) throw new Error('This invite key is no longer active.');
@@ -94,7 +94,7 @@ export default function ScanScreen() {
         const convRef = doc(db, 'conversations', convId);
         const convSnap = await transaction.get(convRef);
 
-        if (!convSnap.exists) {
+        if (!convSnap.exists()) {
           // Create the conversation
           transaction.set(convRef, {
             participants,
@@ -144,6 +144,7 @@ export default function ScanScreen() {
   const surface = useThemeColor({}, 'surfaceElevated');
   const border = useThemeColor({}, 'border');
   const textMuted = useThemeColor({}, 'textSecondary');
+  const textColor = useThemeColor({}, 'text');
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -186,7 +187,7 @@ export default function ScanScreen() {
         <Text style={styles.manualLabel} type="textSecondary">Or enter key manually:</Text>
         <View style={styles.manualRow}>
           <TextInput
-            style={[styles.manualInput, { backgroundColor: surface, borderColor: border, color: useThemeColor({}, 'text') }]}
+            style={[styles.manualInput, { backgroundColor: surface, borderColor: border, color: textColor }]}
             value={manualToken}
             onChangeText={(t) => setManualToken(t.toUpperCase())}
             placeholder="XXXX-XXXX-XXXX"

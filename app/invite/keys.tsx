@@ -34,7 +34,7 @@ export default function InviteKeysScreen() {
       {
         text: 'Revoke', style: 'destructive', onPress: async () => {
           try {
-            await updateDoc(doc(getFirestore(), 'users', user!.uid, 'inviteKeys', key.id), { isActive: false });
+            await updateDoc(doc(getFirestore(), 'inviteKeys', key.id), { isActive: false });
             setSelectedKey(null);
           } catch (err) {
             Alert.alert('Error', 'Failed to revoke key');

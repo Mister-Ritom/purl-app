@@ -121,7 +121,18 @@
       ],
       "expo-sharing",
       "react-native-bottom-tabs",
-      "expo-image"
+      "expo-image",
+      [
+        "react-native-permissions",
+        {
+          "iosPermissions": [
+            "Camera",
+            "Microphone",
+            "PhotoLibrary",
+            "Contacts"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

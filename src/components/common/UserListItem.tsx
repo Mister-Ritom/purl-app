@@ -35,6 +35,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
   avatarUri,
 }) => {
   const status = useUserStatus(user?.uid);
+  const badgeBgColor = useThemeColor({}, 'primary');
   const displayName = title ?? user?.displayName ?? user?.username ?? 'Unknown';
 
   return (
@@ -68,7 +69,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
           </Text>
           {rightElement}
           {(unreadCount ?? 0) > 0 && (
-            <View style={[styles.badge, { backgroundColor: useThemeColor({}, 'primary') }]}>
+            <View style={[styles.badge, { backgroundColor: badgeBgColor }]}>
               <Text style={styles.badgeText}>
                 {(unreadCount ?? 0) > 99 ? '99+' : unreadCount}
               </Text>

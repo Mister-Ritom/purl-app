@@ -16,18 +16,22 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   subtitle,
   actionLabel,
   onAction,
-}) => (
-  <View style={styles.container}>
-    <Text style={styles.icon}>{icon}</Text>
-    <Text style={styles.title}>{title}</Text>
-    {subtitle && <Text type="textSecondary" style={styles.subtitle}>{subtitle}</Text>}
-    {actionLabel && onAction && (
-      <TouchableOpacity style={[styles.button, { backgroundColor: useThemeColor({}, 'primary') }]} onPress={onAction}>
-        <Text style={styles.buttonText}>{actionLabel}</Text>
-      </TouchableOpacity>
-    )}
-  </View>
-);
+}) => {
+  const buttonBgColor = useThemeColor({}, 'primary');
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.icon}>{icon}</Text>
+      <Text style={styles.title}>{title}</Text>
+      {subtitle && <Text type="textSecondary" style={styles.subtitle}>{subtitle}</Text>}
+      {actionLabel && onAction && (
+        <TouchableOpacity style={[styles.button, { backgroundColor: buttonBgColor }]} onPress={onAction}>
+          <Text style={styles.buttonText}>{actionLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
