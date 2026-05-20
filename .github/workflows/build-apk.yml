@@ -57,7 +57,7 @@ jobs:
           sed -i 's/signingConfig null/signingConfig signingConfigs.debug/g' android/app/build.gradle
           echo "org.gradle.jvmargs=-Xmx4g -XX:+UseG1GC" >> android/gradle.properties
           echo "org.gradle.caching=true" >> android/gradle.properties
-          echo "org.gradle.parallel=true" >> android/gradle.properties
+          echo "org.gradle.daemon=false" >> android/gradle.properties
           echo "$ANDROID_DEBUG_KEYSTORE_B64" | base64 -d > android/app/debug.keystore
 
 
@@ -68,7 +68,8 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
 
 
       - name: Upload APK Artifact
