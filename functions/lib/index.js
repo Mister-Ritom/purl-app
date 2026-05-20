@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.registerPublicKey = exports.onUserDeleted = exports.expireStatuses = exports.sendCallNotification = exports.sendMessageNotification = exports.redeemInviteKey = exports.registerInviteKey = exports.createInviteKey = exports.initiateCall = exports.generateAgoraToken = void 0;
+exports.sendOptimisticAccept = exports.registerPublicKey = exports.onUserDeleted = exports.expireStatuses = exports.sendCallNotification = exports.sendMessageNotification = exports.redeemInviteKey = exports.registerInviteKey = exports.createInviteKey = exports.initiateCall = exports.generateAgoraToken = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -361,7 +361,7 @@ exports.sendCallNotification = (0, firestore_1.onDocumentCreated)('calls/{callId
         },
         apns: {
             headers: {
-                'apns-push-type': 'voip',
+                'apns-push-type': 'background',
                 'apns-priority': '10',
                 'apns-expiration': String(Math.floor(Date.now() / 1000) + 30),
             },
@@ -444,5 +444,40 @@ exports.registerPublicKey = (0, https_1.onCall)(async (request) => {
         publicKey: publicKeyB64,
     });
     return { success: true };
+});
+// ─── 9. sendOptimisticAccept ───────────────────────────────────────────────
+exports.sendOptimisticAccept = (0, firestore_1.onDocumentUpdated)('calls/{callId}', async (event) => {
+    const snap = event.data;
+    if (!snap)
+        return;
+    const before = snap.before.data();
+    const after = snap.after.data();
+    // Trigger when status changes to 'accepted'
+    if ((before === null || before === void 0 ? void 0 : before.status) !== 'accepted' && (after === null || after === void 0 ? void 0 : after.status) === 'accepted') {
+        const callId = event.params.callId;
+        const callerId = after.callerId;
+        const userSnap = await db.collection('users').doc(callerId).get();
+        const token = userSnap.get('fcmToken');
+        if (!token)
+            return;
+        await admin.messaging().send({
+            token,
+            data: {
+                type: 'CALL_ACCEPTED_OPTIMISTIC',
+                callId: callId,
+            },
+            android: {
+                priority: 'high',
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        contentAvailable: true,
+                    },
+                },
+            },
+        });
+        v2_1.logger.info(`Sent CALL_ACCEPTED_OPTIMISTIC FCM message for call: ${callId}`);
+    }
 });
 //# sourceMappingURL=index.js.map

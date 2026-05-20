@@ -5,7 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
-import { getFirestore, doc, getDoc } from "@react-native-firebase/firestore";
+import { getFirestore, doc, getDoc, updateDoc } from "@react-native-firebase/firestore";
 import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { useAuthStore } from "../src/store/authStore";
 import { COLORS_DARK, COLORS_LIGHT } from "../src/utils/constants";
@@ -51,7 +51,18 @@ export default function RootLayout() {
         const userDocRef = doc(getFirestore(), "users", firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
-          setUserProfile(userDoc.data() as any);
+          const profileData = userDoc.data() as any;
+          setUserProfile(profileData);
+
+          // Auto-sync photoURL if Firestore photoURL is empty but FirebaseAuth has one
+          if (!profileData.photoURL && firebaseUser.photoURL) {
+            try {
+              await updateDoc(userDocRef, { photoURL: firebaseUser.photoURL });
+              setUserProfile({ ...profileData, photoURL: firebaseUser.photoURL });
+            } catch (err) {
+              console.error("[RootLayout] Failed to auto-sync photoURL:", err);
+            }
+          }
         } else {
           setUserProfile(null);
         }

@@ -119,11 +119,13 @@ export async function completeOnboarding(
     blockedUsers: [],
   };
 
+  const authPhotoURL = getAuth().currentUser?.photoURL || '';
+
   batch.set(userRef, {
     uid,
     username: username.toLowerCase(),
     displayName,
-    photoURL: '',
+    photoURL: authPhotoURL,
     about: '',
     publicKey: encodeBase64(keyPair.publicKey),
     isOnline: true,

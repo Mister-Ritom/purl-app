@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { Platform } from 'react-native';
 import { useCallStore } from '../../src/store/callStore';
 import { useAuthStore } from '../../src/store/authStore';
 import { Avatar } from '../../src/components/common/Avatar';
+import OverlayToast from '../../src/components/common/OverlayToast';
 import { COLORS } from '../../src/utils/constants';
 import {
   initAgoraEngine,
@@ -40,9 +41,8 @@ export function hashUidToNumber(uid: string): number {
 }
 
 export default function CallScreen() {
-  const { callId, isOutgoing, receiverId, receiverName, receiverPhoto, type } = useLocalSearchParams<{
+  const { callId, receiverId, receiverName, receiverPhoto, type } = useLocalSearchParams<{
     callId: string;
-    isOutgoing?: string;
     receiverId?: string;
     receiverName?: string;
     receiverPhoto?: string;
@@ -57,6 +57,10 @@ export default function CallScreen() {
 
   const [otherUser, setOtherUser] = useState<UserProfile | null>(null);
   const [callDuration, setCallDuration] = useState(0);
+  const [showEndToast, setShowEndToast] = useState(false);
+  const [resolvedCallId, setResolvedCallId] = useState<string | null>(callId === 'outgoing' ? null : callId);
+
+  const hasNavigatedBack = useRef(false);
 
   useEffect(() => {
     if (callId === 'outgoing' && receiverId) {
@@ -81,15 +85,22 @@ export default function CallScreen() {
         });
         const { callId: realCallId } = result.data as { callId: string };
         if (active) {
-          router.replace({
-            pathname: `/call/${realCallId}`,
-            params: { type },
-          } as any);
+          setResolvedCallId(realCallId);
+        } else {
+          // Clean up the created call document if caller cancelled early
+          await updateDoc(doc(getFirestore(), 'calls', realCallId), {
+            status: 'ended',
+            endedAt: serverTimestamp(),
+            duration: 0,
+          }).catch(() => {});
         }
       } catch (err: any) {
         console.error('[CallScreen] initiateCall error:', err);
         Alert.alert('Call Failed', err.message ?? 'Could not initiate call.');
-        router.back();
+        if (!hasNavigatedBack.current) {
+          hasNavigatedBack.current = true;
+          router.back();
+        }
       }
     };
 
@@ -101,17 +112,19 @@ export default function CallScreen() {
   }, [callId, receiverId, type]);
 
   useEffect(() => {
-    if (!callId || callId === 'outgoing') return;
+    if (!resolvedCallId) return;
 
-    loadCallAndJoin();
+    loadCallAndJoin(resolvedCallId);
     
     // Listen for call status changes (e.g., other user declined or ended)
-    const unsub = onSnapshot(doc(getFirestore(), 'calls', callId), (snapshot) => {
+    const unsub = onSnapshot(doc(getFirestore(), 'calls', resolvedCallId), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         setActiveCall({ id: snapshot.id, ...data } as any);
         if (data?.status === 'ended' || data?.status === 'declined') {
           setCallStatus('ended');
+        } else if (data?.status === 'accepted') {
+          setCallStatus('connected');
         } else if (data?.status === 'active') {
           setCallStatus('active');
         }
@@ -125,11 +138,17 @@ export default function CallScreen() {
       leaveCall(); 
       reset(); 
     };
-  }, [callId]);
+  }, [resolvedCallId]);
 
   useEffect(() => {
     if (callStatus === 'ended') {
-      const timer = setTimeout(() => router.back(), 2000);
+      setShowEndToast(true);
+      const timer = setTimeout(() => {
+        if (!hasNavigatedBack.current) {
+          hasNavigatedBack.current = true;
+          router.back();
+        }
+      }, 1700);
       return () => clearTimeout(timer);
     }
     // Only start timer if both local and remote are active
@@ -138,12 +157,18 @@ export default function CallScreen() {
     return () => clearInterval(timer);
   }, [callStatus, activeCall?.status]);
 
-  async function loadCallAndJoin() {
-    if (!callId || callId === 'outgoing' || !user) return;
+  async function loadCallAndJoin(targetCallId: string) {
+    if (!user) return;
     try {
-      const callDocRef = doc(getFirestore(), 'calls', callId);
+      const callDocRef = doc(getFirestore(), 'calls', targetCallId);
       const callDocSnap = await getDoc(callDocRef);
-      if (!callDocSnap.exists()) { router.back(); return; }
+      if (!callDocSnap.exists()) { 
+        if (!hasNavigatedBack.current) {
+          hasNavigatedBack.current = true;
+          router.back();
+        }
+        return; 
+      }
       const call = { id: callDocSnap.id, ...callDocSnap.data() } as any;
       setActiveCall(call);
 
@@ -172,7 +197,7 @@ export default function CallScreen() {
       if (call.callerId !== user.uid) {
         try {
           const result = await httpsCallable(getFunctions(), 'generateAgoraToken')({
-            channelName: callId,
+            channelName: targetCallId,
             uid: user.uid
           });
           token = (result.data as any).token;
@@ -187,7 +212,7 @@ export default function CallScreen() {
 
       if (!token) throw new Error('No Agora token available');
 
-      await joinCall(callId, token, agoraUid, isVideoCall);
+      await joinCall(targetCallId, token, agoraUid, isVideoCall);
       
       if (call.callerId === user.uid) {
         setCallStatus('ringing');
@@ -204,21 +229,27 @@ export default function CallScreen() {
     } catch (err: any) {
       console.error('[CallScreen] Load/Join error:', err);
       Alert.alert('Call Error', err.message ?? 'Could not connect.');
-      router.back();
+      if (!hasNavigatedBack.current) {
+        hasNavigatedBack.current = true;
+        router.back();
+      }
     }
   }
 
   const handleEndCall = async () => {
     leaveCall();
-    if (callId !== 'outgoing') {
-      await updateDoc(doc(getFirestore(), 'calls', callId), {
+    if (resolvedCallId) {
+      await updateDoc(doc(getFirestore(), 'calls', resolvedCallId), {
         status: 'ended',
         endedAt: serverTimestamp(),
         duration: callDuration,
       }).catch(() => {});
     }
     reset();
-    router.back();
+    if (!hasNavigatedBack.current) {
+      hasNavigatedBack.current = true;
+      router.back();
+    }
   };
 
   const handleMuteAudio = () => {
@@ -261,8 +292,9 @@ export default function CallScreen() {
           <Text style={styles.callStatusText}>
             {callStatus === 'connecting' ? '🔄 Connecting...'
               : callStatus === 'ringing' ? '📳 Ringing...'
+              : callStatus === 'connected' ? '🟢 Connected'
               : callStatus === 'active' ? formatDuration(callDuration)
-              : 'Ending...'}
+              : 'Call Ended'}
           </Text>
         </View>
 
@@ -297,6 +329,7 @@ export default function CallScreen() {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      {showEndToast && <OverlayToast message="Call ended" />}
     </View>
   );
 }

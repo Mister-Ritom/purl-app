@@ -86,7 +86,7 @@ export default function SettingsScreen() {
           onPress={() => router.push("/profile/edit")}
         >
           <Avatar
-            uri={user?.photoURL}
+            uri={userProfile?.photoURL || user?.photoURL}
             name={userProfile?.displayName || userProfile?.username}
             size="lg"
           />

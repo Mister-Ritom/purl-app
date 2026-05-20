@@ -52,7 +52,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   const fontSize = dim * 0.36;
   const onlineDotSize = dim * 0.28;
   const dotColor = useThemeColor({}, online ? 'online' : 'textMuted');
-  const borderColor = useThemeColor({}, 'background');
+  const borderColor = 'transparent';
   const borderRadius = shape === 'circle' ? dim / 2 : dim / 3;
 
   return (
@@ -101,6 +101,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
+    backgroundColor: 'transparent',
   },
   image: {
   },

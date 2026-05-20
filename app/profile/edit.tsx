@@ -11,10 +11,10 @@ import { uploadAvatar, updateUserProfile } from '../../src/services/firestore';
 import { COLORS, SIZES, FONTS } from '../../src/utils/constants';
 
 export default function EditProfileScreen() {
-  const { userProfile, setUserProfile } = useAuthStore();
+  const { user, userProfile, setUserProfile } = useAuthStore();
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [about, setAbout] = useState(userProfile?.about || '');
-  const [photoUri, setPhotoUri] = useState(userProfile?.photoURL || '');
+  const [photoUri, setPhotoUri] = useState(userProfile?.photoURL || user?.photoURL || '');
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePickImage = async () => {
@@ -47,7 +47,11 @@ export default function EditProfileScreen() {
       let finalPhotoUrl = userProfile?.photoURL || '';
 
       if (photoUri && photoUri !== userProfile?.photoURL) {
-        finalPhotoUrl = await uploadAvatar(userProfile!.uid, photoUri);
+        if (photoUri.startsWith('http://') || photoUri.startsWith('https://')) {
+          finalPhotoUrl = photoUri;
+        } else {
+          finalPhotoUrl = await uploadAvatar(userProfile!.uid, photoUri);
+        }
       }
 
       const updateData = {

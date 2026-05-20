@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions/v2';
@@ -555,3 +555,43 @@ export const registerPublicKey = onCall(async (request) => {
 
   return { success: true };
 });
+
+// ─── 9. sendOptimisticAccept ───────────────────────────────────────────────
+export const sendOptimisticAccept = onDocumentUpdated(
+  'calls/{callId}',
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const before = snap.before.data();
+    const after = snap.after.data();
+
+    // Trigger when status changes to 'accepted'
+    if (before?.status !== 'accepted' && after?.status === 'accepted') {
+      const callId = event.params.callId;
+      const callerId = after.callerId;
+
+      const userSnap = await db.collection('users').doc(callerId).get();
+      const token = userSnap.get('fcmToken');
+      if (!token) return;
+
+      await admin.messaging().send({
+        token,
+        data: {
+          type: 'CALL_ACCEPTED_OPTIMISTIC',
+          callId: callId,
+        },
+        android: {
+          priority: 'high',
+        },
+        apns: {
+          payload: {
+            aps: {
+              contentAvailable: true,
+            },
+          },
+        },
+      });
+      logger.info(`Sent CALL_ACCEPTED_OPTIMISTIC FCM message for call: ${callId}`);
+    }
+  }
+);

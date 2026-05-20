@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Call } from '../types/call';
 
-type CallStatus = 'idle' | 'ringing' | 'connecting' | 'active' | 'ended';
+type CallStatus = 'idle' | 'ringing' | 'connecting' | 'connected' | 'active' | 'ended';
 
 interface CallStore {
   activeCall: Call | null;
