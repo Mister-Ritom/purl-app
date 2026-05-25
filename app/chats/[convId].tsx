@@ -27,18 +27,14 @@ import { useUserStatus } from "../../src/hooks/useUserStatus";
 import { Avatar } from "../../src/components/common/Avatar";
 import {
   sendMessage,
-  markMessagesRead,
   deleteMessageForMe,
   deleteMessageForEveryone,
-  addReaction,
   uploadEncryptedMedia,
-  resetUnreadCount,
 } from "../../src/services/firestore";
 import { Message, MediaItem } from "../../src/types/message";
 import { Conversation } from "../../src/types/conversation";
 import {
   encryptMessage,
-  decryptMessage,
   getSharedSecret,
   encryptFile,
   decryptGroupKey,
@@ -53,7 +49,6 @@ import { DELETE_FOR_EVERYONE_LIMIT_MS } from "../../src/utils/constants";
 import {
   formatMessageTime,
   formatDateSeparator,
-  formatDuration,
 } from "../../src/utils/formatTime";
 import {
   getFirestore,
@@ -63,10 +58,10 @@ import {
   Timestamp,
   serverTimestamp,
 } from "@react-native-firebase/firestore";
-import { getFunctions, httpsCallable } from "@react-native-firebase/functions";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { UserProfile } from "../../src/types/user";
+import Ionicons from "react-native-vector-icons/dist/Ionicons";
 
 export default function ConversationScreen() {
   const { colors } = useTheme();
@@ -115,7 +110,8 @@ export default function ConversationScreen() {
   const [encryptionError, setEncryptionError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isRecordingLoading, setIsRecordingLoading] = useState(false);
-  const { requestPermission: requestMicrophonePermission } = usePermissions("microphone");
+  const { requestPermission: requestMicrophonePermission } =
+    usePermissions("microphone");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
   const [uploadingStatus, setUploadingStatus] = useState<
@@ -330,7 +326,7 @@ export default function ConversationScreen() {
 
     try {
       const { ciphertext, nonce } = encryptMessage(activeKey, text);
-      
+
       useChatStore.getState().removeMessage(convId, tempId);
 
       await sendMessage(convId, {
@@ -357,11 +353,14 @@ export default function ConversationScreen() {
   const pickAndSendMedia = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission required", "Allow access to photos to share media.");
+      Alert.alert(
+        "Permission required",
+        "Allow access to photos to share media.",
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes: ["images", "videos"],
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: 10,
@@ -373,11 +372,14 @@ export default function ConversationScreen() {
   const takePhotoOrVideo = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert('Permission required', 'Allow access to camera to take photos/videos.');
+      Alert.alert(
+        "Permission required",
+        "Allow access to camera to take photos/videos.",
+      );
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes: ["images", "videos"],
       quality: 0.8,
     });
     if (result.canceled || !activeKey || !user || !convId) return;
@@ -757,7 +759,9 @@ export default function ConversationScreen() {
           .getState()
           .updateMessage(convId, tempId, { isOptimistic: false });
       } catch (err) {
-        useChatStore.getState().updateMessage(convId, tempId, { isError: true });
+        useChatStore
+          .getState()
+          .updateMessage(convId, tempId, { isError: true });
         Alert.alert("Upload failed", "Could not send voice message.");
       }
     } catch (err) {
@@ -966,7 +970,9 @@ export default function ConversationScreen() {
                               <View style={styles.decryptOverlay}>
                                 <ActivityIndicator size="small" color="#fff" />
                                 <Text style={styles.decryptText}>
-                                  {item.isError ? "Decryption failed" : "Decrypting..."}
+                                  {item.isError
+                                    ? "Decryption failed"
+                                    : "Decrypting..."}
                                 </Text>
                               </View>
                             )}
@@ -1397,7 +1403,9 @@ export default function ConversationScreen() {
                 {isRecordingLoading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.sendIcon}>{isRecording ? "⏹" : "🎤"}</Text>
+                  <Text style={styles.sendIcon}>
+                    {isRecording ? "⏹" : "🎤"}
+                  </Text>
                 )}
               </TouchableOpacity>
             )}
@@ -1523,14 +1531,14 @@ export default function ConversationScreen() {
             style={styles.fullscreenClose}
             onPress={() => setSelectedImage(null)}
           >
-            <Text style={styles.fullscreenCloseText}>✕</Text>
+            <Ionicons name="close" size={32} color={colors.surface} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.fullscreenShare}
             onPress={() => selectedImage && shareMedia(selectedImage)}
           >
-            <Text style={styles.fullscreenCloseText}>⎙</Text>
+            <Ionicons name="arrow-up-circle" size={32} color={colors.surface} />
           </TouchableOpacity>
           {selectedImage && (
             <Image
@@ -1902,8 +1910,8 @@ const styles = StyleSheet.create({
   },
   fullscreenShare: {
     position: "absolute",
-    top: 50,
-    left: 20,
+    bottom: 50,
+    right: 20,
     zIndex: 10,
     padding: 10,
   },
