@@ -51,6 +51,7 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.6",
+    "react-native-aes-gcm-crypto": "^0.2.2",
     "react-native-agora": "^4.5.4",
     "react-native-bottom-tabs": "^1.2.0",
     "react-native-callkeep": "^4.3.16",

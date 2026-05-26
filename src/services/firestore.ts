@@ -219,17 +219,11 @@ export async function addReaction(
 export async function uploadEncryptedMedia(
   convId: string,
   fileName: string,
-  encryptedBytes: Uint8Array,
+  localUri: string,
   onProgress?: (p: number) => void
 ): Promise<string> {
-  const tempPath = `${FileSystem.cacheDirectory}upload_${Date.now()}.enc`;
-  const { encodeBase64 } = await import('tweetnacl-util');
-  await FileSystem.writeAsStringAsync(tempPath, encodeBase64(encryptedBytes), {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
   const storageRefPath = storageRef(getStorage(), `media/${convId}/${fileName}`);
-  const task = putFile(storageRefPath, tempPath);
+  const task = putFile(storageRefPath, localUri);
 
   if (onProgress) {
     task.on('state_changed', (snapshot) => {
@@ -238,7 +232,7 @@ export async function uploadEncryptedMedia(
   }
 
   await task;
-  await FileSystem.deleteAsync(tempPath, { idempotent: true });
+  await FileSystem.deleteAsync(localUri, { idempotent: true });
   return await getDownloadURL(storageRefPath);
 }
 

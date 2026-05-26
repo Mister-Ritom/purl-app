@@ -125,7 +125,8 @@ export function useMessages(convId: string, conversation: Conversation | null) {
               continue;
             }
 
-            const decryptedUri = await downloadAndDecrypt(item.url, item.nonce, key, cachePath);
+            const encryptionData = item.mediaEncryption || item.nonce || '';
+            const decryptedUri = await downloadAndDecrypt(item.url, encryptionData, key, cachePath);
             if (decryptedUri) {
               updatedItems[i].localCacheUri = decryptedUri;
               changed = true;
@@ -142,7 +143,7 @@ export function useMessages(convId: string, conversation: Conversation | null) {
     }
   };
 
-  const downloadAndDecrypt = async (url: string, nonce: string, key: Uint8Array, cachePath: string) => {
+  const downloadAndDecrypt = async (url: string, encryptionData: any, key: Uint8Array, cachePath: string) => {
     try {
       const cacheDir = FileSystem.cacheDirectory;
       if (!cacheDir) return null;
@@ -156,7 +157,7 @@ export function useMessages(convId: string, conversation: Conversation | null) {
       }
       
       const decryptedTempPath = `${cacheDir}${Date.now()}_${Math.random().toString(36).substring(7)}.dec`;
-      const decryptedUri = await decryptFile(key, tempPath, nonce, decryptedTempPath);
+      const decryptedUri = await decryptFile(key, tempPath, encryptionData, decryptedTempPath);
       
       if (decryptedUri) {
         await FileSystem.moveAsync({ from: decryptedUri, to: cachePath });

@@ -13,6 +13,7 @@ import {
   Image as RNImage,
   Animated,
 } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { View, Text } from "../../src/components/Themed";
@@ -42,7 +43,6 @@ import {
 import * as Sharing from "expo-sharing";
 import { useSoundRecorderWithStates } from "react-native-nitro-sound";
 import { usePermissions } from "../../src/hooks/usePermissions";
-import { encodeBase64 } from "tweetnacl-util";
 import { VideoMessage } from "../../src/components/chat/VideoMessage";
 import { AudioMessage } from "../../src/components/chat/AudioMessage";
 import { DELETE_FOR_EVERYONE_LIMIT_MS } from "../../src/utils/constants";
@@ -440,9 +440,11 @@ export default function ConversationScreen() {
           [statusKey]: { progress: 0, phase: "Encrypting" },
         }));
 
-        const { encryptedBytes, nonce } = await encryptFile(
+        const tempDestUri = `${FileSystem.cacheDirectory}enc_${Date.now()}_${i}.enc`;
+        const { mediaEncryption, encryptedFileUri } = await encryptFile(
           activeKey!,
           asset.uri,
+          tempDestUri,
         );
         console.log(`[Media] Item ${i} encrypted. Uploading...`);
 
@@ -455,7 +457,7 @@ export default function ConversationScreen() {
         const url = await uploadEncryptedMedia(
           convId!,
           fileName,
-          encryptedBytes,
+          encryptedFileUri,
           (p) => {
             setUploadingStatus((prev) => ({
               ...prev,
@@ -475,7 +477,7 @@ export default function ConversationScreen() {
           mimeType:
             asset.mimeType ??
             (asset.type === "video" ? "video/mp4" : "image/jpeg"),
-          nonce: encodeBase64(nonce),
+          mediaEncryption,
           size: asset.fileSize ?? null,
           duration: asset.duration ? Math.floor(asset.duration / 1000) : null,
         });
@@ -558,7 +560,12 @@ export default function ConversationScreen() {
         ...prev,
         [tempId]: { progress: 0, phase: "Encrypting" },
       }));
-      const { encryptedBytes, nonce } = await encryptFile(activeKey, file.uri);
+      const tempDestUri = `${FileSystem.cacheDirectory}enc_${Date.now()}.enc`;
+      const { mediaEncryption, encryptedFileUri } = await encryptFile(
+        activeKey,
+        file.uri,
+        tempDestUri,
+      );
 
       setUploadingStatus((prev) => ({
         ...prev,
@@ -568,7 +575,7 @@ export default function ConversationScreen() {
       const url = await uploadEncryptedMedia(
         convId,
         fileName,
-        encryptedBytes,
+        encryptedFileUri,
         (p) => {
           setUploadingStatus((prev) => ({
             ...prev,
@@ -594,7 +601,7 @@ export default function ConversationScreen() {
           {
             url,
             mimeType: file.mimeType ?? "application/octet-stream",
-            nonce: encodeBase64(nonce),
+            mediaEncryption,
             fileName: file.name,
             size: file.size,
           },
@@ -708,7 +715,12 @@ export default function ConversationScreen() {
           ...prev,
           [tempId]: { progress: 0, phase: "Encrypting" },
         }));
-        const { encryptedBytes, nonce } = await encryptFile(activeKey, uri);
+        const tempDestUri = `${FileSystem.cacheDirectory}enc_${Date.now()}.enc`;
+        const { mediaEncryption, encryptedFileUri } = await encryptFile(
+          activeKey,
+          uri,
+          tempDestUri,
+        );
 
         setUploadingStatus((prev) => ({
           ...prev,
@@ -718,7 +730,7 @@ export default function ConversationScreen() {
         const url = await uploadEncryptedMedia(
           convId,
           fileName,
-          encryptedBytes,
+          encryptedFileUri,
           (p) => {
             setUploadingStatus((prev) => ({
               ...prev,
@@ -744,7 +756,7 @@ export default function ConversationScreen() {
             {
               url,
               mimeType: "audio/m4a",
-              nonce: encodeBase64(nonce),
+              mediaEncryption,
               duration: Math.floor(recorder.state.currentPosition / 1000),
               size: 0,
             },

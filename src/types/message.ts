@@ -5,7 +5,8 @@ export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'l
 export interface MediaItem {
   url: string;
   mimeType: string;
-  nonce: string;
+  nonce?: string;
+  mediaEncryption?: { ciphertext: string; nonce: string };
   size?: number | null;
   fileName?: string | null;
   duration?: number | null;
