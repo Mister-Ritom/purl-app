@@ -53,6 +53,7 @@ import {
 import {
   getFirestore,
   doc,
+  collection,
   getDoc,
   onSnapshot,
   Timestamp,
@@ -306,7 +307,9 @@ export default function ConversationScreen() {
     setSending(true);
     onStopTyping();
 
-    const tempId = `temp_${Date.now()}`;
+    const tempId = doc(
+      collection(getFirestore(), "conversations", convId!, "messages"),
+    ).id;
     const optimisticMsg: Message = {
       id: tempId,
       senderId: user.uid,
@@ -327,8 +330,6 @@ export default function ConversationScreen() {
     try {
       const { ciphertext, nonce } = encryptMessage(activeKey, text);
 
-      useChatStore.getState().removeMessage(convId, tempId);
-
       await sendMessage(convId, {
         senderId: user.uid,
         type: "text",
@@ -339,7 +340,7 @@ export default function ConversationScreen() {
         deletedFor: [],
         deletedForEveryone: false,
         timestamp: serverTimestamp() as any,
-      });
+      }, tempId);
     } catch (err) {
       Alert.alert("Send failed", "Message could not be sent.");
       setInputText(text);
@@ -399,7 +400,9 @@ export default function ConversationScreen() {
     );
     setMediaToPreview([]);
     setCaptionText("");
-    const tempId = `temp_${Date.now()}`;
+    const tempId = doc(
+      collection(getFirestore(), "conversations", convId!, "messages"),
+    ).id;
 
     try {
       // Optimistic UI: One bubble for all media
@@ -500,12 +503,9 @@ export default function ConversationScreen() {
         deletedFor: [],
         deletedForEveryone: false,
         timestamp: serverTimestamp() as any,
-      });
+      }, tempId);
 
       console.log("[Media] Firestore message sent successfully.");
-      useChatStore
-        .getState()
-        .removeMessage(convId!, tempId);
 
       // Clear status after success
       setUploadingStatus((prev) => {
@@ -527,7 +527,9 @@ export default function ConversationScreen() {
     });
     if (result.canceled || !activeKey || !user || !convId) return;
     const file = result.assets[0];
-    const tempId = `temp_${Date.now()}`;
+    const tempId = doc(
+      collection(getFirestore(), "conversations", convId!, "messages"),
+    ).id;
     try {
       // Optimistic UI
       const optimisticMsg: Message = {
@@ -611,12 +613,8 @@ export default function ConversationScreen() {
         deletedFor: [],
         deletedForEveryone: false,
         timestamp: serverTimestamp() as any,
-      });
+      }, tempId);
 
-      // Cleanup
-      useChatStore
-        .getState()
-        .removeMessage(convId, tempId);
     } catch {
       useChatStore.getState().updateMessage(convId, tempId, { isError: true });
       Alert.alert("Upload failed", "Could not send document.");
@@ -684,7 +682,9 @@ export default function ConversationScreen() {
         return;
       }
 
-      const tempId = `temp_${Date.now()}`;
+      const tempId = doc(
+        collection(getFirestore(), "conversations", convId!, "messages"),
+      ).id;
       try {
         const optimisticMsg: Message = {
           id: tempId,
@@ -766,10 +766,7 @@ export default function ConversationScreen() {
           deletedFor: [],
           deletedForEveryone: false,
           timestamp: serverTimestamp() as any,
-        });
-        useChatStore
-          .getState()
-          .removeMessage(convId, tempId);
+        }, tempId);
       } catch (err) {
         useChatStore
           .getState()

@@ -39,6 +39,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         if (old) {
           return {
             ...incoming,
+            timestamp: incoming.timestamp ?? old.timestamp,
             decryptedContent: old.decryptedContent ?? incoming.decryptedContent,
             isError: old.isError ?? incoming.isError,
             mediaItems: incoming.mediaItems?.map((incomingMedia, i) => {

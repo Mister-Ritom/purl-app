@@ -124,10 +124,17 @@ export function subscribeToMessages(
 
 export async function sendMessage(
   convId: string,
-  message: Omit<Message, 'id'>
+  message: Omit<Message, 'id'>,
+  messageId?: string
 ): Promise<string> {
   const messagesRef = collection(getFirestore(), 'conversations', convId, 'messages');
-  const docRef = await addDoc(messagesRef, message);
+  let docRef;
+  if (messageId) {
+    docRef = doc(messagesRef, messageId);
+    await setDoc(docRef, message);
+  } else {
+    docRef = await addDoc(messagesRef, message);
+  }
 
   const convRef = doc(getFirestore(), 'conversations', convId);
   const convSnap = await getDoc(convRef);
