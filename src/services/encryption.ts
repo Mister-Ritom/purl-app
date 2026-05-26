@@ -175,11 +175,13 @@ export async function encryptFile(
   });
 
   // Encrypt the file using the native GCM method
-  const { iv, tag } = await AesGcmCrypto.encryptFile(
+  const result = await AesGcmCrypto.encryptFile(
     fileUri.replace("file://", ""),
     destUri.replace("file://", ""),
     aesKeyBase64,
   );
+  const iv = result.iv;
+  const tag = result.tag;
 
   // Combine key, IV, and tag then encrypt with tweetnacl
   const combinedPayload = `${aesKeyBase64}:${iv}:${tag}`;
@@ -241,6 +243,7 @@ export async function decryptFile(
       iv,
       tag,
     );
+    
     return destUri;
   } catch (error) {
     console.error("[decryptFile] Error:", error);

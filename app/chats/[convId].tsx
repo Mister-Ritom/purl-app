@@ -505,7 +505,7 @@ export default function ConversationScreen() {
       console.log("[Media] Firestore message sent successfully.");
       useChatStore
         .getState()
-        .updateMessage(convId!, tempId, { isOptimistic: false });
+        .removeMessage(convId!, tempId);
 
       // Clear status after success
       setUploadingStatus((prev) => {
@@ -616,7 +616,7 @@ export default function ConversationScreen() {
       // Cleanup
       useChatStore
         .getState()
-        .updateMessage(convId, tempId, { isOptimistic: false });
+        .removeMessage(convId, tempId);
     } catch {
       useChatStore.getState().updateMessage(convId, tempId, { isError: true });
       Alert.alert("Upload failed", "Could not send document.");
@@ -769,7 +769,7 @@ export default function ConversationScreen() {
         });
         useChatStore
           .getState()
-          .updateMessage(convId, tempId, { isOptimistic: false });
+          .removeMessage(convId, tempId);
       } catch (err) {
         useChatStore
           .getState()
