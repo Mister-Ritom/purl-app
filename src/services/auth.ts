@@ -1,5 +1,5 @@
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { getAuth, signInWithCredential, signOut as firebaseSignOut, GoogleAuthProvider } from '@react-native-firebase/auth';
+import { getAuth, signInWithCredential, signOut as firebaseSignOut, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPhoneNumber, FirebaseAuthTypes, sendPasswordResetEmail, updateProfile, updateEmail } from '@react-native-firebase/auth';
 import { getFirestore, doc, getDoc, updateDoc, writeBatch, serverTimestamp } from '@react-native-firebase/firestore';
 import { getMessaging, getToken, onTokenRefresh } from '@react-native-firebase/messaging';
 import * as Keychain from 'react-native-keychain';
@@ -50,6 +50,65 @@ export async function signInWithGoogle(): Promise<void> {
   } catch (error: any) {
     if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
     if (error.code === statusCodes.IN_PROGRESS) return;
+    throw error;
+  }
+}
+
+export async function signInWithEmail(email: string, password: string, isSignUp: boolean): Promise<void> {
+  try {
+    let result;
+    if (isSignUp) {
+      result = await createUserWithEmailAndPassword(getAuth(), email, password);
+    } else {
+      result = await signInWithEmailAndPassword(getAuth(), email, password);
+    }
+    
+    const uid = result.user.uid;
+    const userDocRef = doc(getFirestore(), 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+      router.replace('/(auth)/username');
+    } else {
+      const keyPair = await getOrCreateKeyPair(uid);
+      useAuthStore.getState().setKeyPair(keyPair);
+      await registerFCMToken(uid);
+      router.replace('/(app)/chats');
+    }
+  } catch (error: any) {
+    throw error;
+  }
+}
+
+export async function signInWithPhone(phoneNumber: string): Promise<FirebaseAuthTypes.ConfirmationResult> {
+  try {
+    const confirmation = await signInWithPhoneNumber(getAuth(), phoneNumber);
+    return confirmation;
+  } catch (error: any) {
+    throw error;
+  }
+}
+
+export async function confirmPhoneCode(confirmation: FirebaseAuthTypes.ConfirmationResult, code: string): Promise<void> {
+  try {
+    const result = await confirmation.confirm(code);
+    if (!result || !result.user) {
+      throw new Error("Phone authentication failed");
+    }
+
+    const uid = result.user.uid;
+    const userDocRef = doc(getFirestore(), 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+      router.replace('/(auth)/username');
+    } else {
+      const keyPair = await getOrCreateKeyPair(uid);
+      useAuthStore.getState().setKeyPair(keyPair);
+      await registerFCMToken(uid);
+      router.replace('/(app)/chats');
+    }
+  } catch (error: any) {
     throw error;
   }
 }

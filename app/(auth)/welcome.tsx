@@ -11,7 +11,7 @@ import { useTheme } from '../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signInWithGoogle } from '../../src/services/auth';
-
+import { router } from 'expo-router';
 export default function WelcomeScreen() {
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
@@ -80,6 +80,26 @@ export default function WelcomeScreen() {
           )}
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => router.push('/(auth)/email')}
+          activeOpacity={0.85}
+          disabled={loading}
+        >
+          <Text style={styles.secondaryIcon}>✉️</Text>
+          <Text style={styles.secondaryButtonText}>Continue with Email</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => router.push('/(auth)/phone')}
+          activeOpacity={0.85}
+          disabled={loading}
+        >
+          <Text style={styles.secondaryIcon}>📱</Text>
+          <Text style={styles.secondaryButtonText}>Continue with Phone</Text>
+        </TouchableOpacity>
+
         <Text style={styles.legal}>
           By continuing, you agree to our{' '}
           <Text style={styles.legalLink}>Terms of Service</Text>
@@ -144,7 +164,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footer: {
-    gap: 16,
+    gap: 12,
     marginTop: 'auto',
     paddingBottom: 20,
   },
@@ -160,6 +180,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 8,
+    marginBottom: 4,
   },
   googleButtonDisabled: {
     opacity: 0.7,
@@ -174,10 +195,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1A1A1A',
   },
+  secondaryButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 14,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  secondaryIcon: {
+    fontSize: 18,
+  },
+  secondaryButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
   legal: {
     textAlign: 'center',
     fontSize: 12,
     lineHeight: 18,
+    marginTop: 8,
   },
   legalLink: {
     textDecorationLine: 'underline',
