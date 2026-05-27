@@ -1,27 +1,37 @@
 import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, TouchableOpacity, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform, Modal, FlatList } from 'react-native';
 import { View, Text } from '../../src/components/Themed';
 import { useTheme } from '../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signInWithPhone, confirmPhoneCode } from '../../src/services/auth';
 import { router } from 'expo-router';
-import CountryPicker, { CountryCode, Country } from 'react-native-country-picker-modal';
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
+
+const COUNTRIES = [
+  { code: 'US', name: 'United States', callingCode: '1', flag: '🇺🇸' },
+  { code: 'GB', name: 'United Kingdom', callingCode: '44', flag: '🇬🇧' },
+  { code: 'IN', name: 'India', callingCode: '91', flag: '🇮🇳' },
+  { code: 'CA', name: 'Canada', callingCode: '1', flag: '🇨🇦' },
+  { code: 'AU', name: 'Australia', callingCode: '61', flag: '🇦🇺' },
+  { code: 'DE', name: 'Germany', callingCode: '49', flag: '🇩🇪' },
+  { code: 'FR', name: 'France', callingCode: '33', flag: '🇫🇷' },
+  { code: 'IT', name: 'Italy', callingCode: '39', flag: '🇮🇹' },
+  { code: 'JP', name: 'Japan', callingCode: '81', flag: '🇯🇵' },
+  { code: 'CN', name: 'China', callingCode: '86', flag: '🇨🇳' },
+  { code: 'BR', name: 'Brazil', callingCode: '55', flag: '🇧🇷' },
+  { code: 'ZA', name: 'South Africa', callingCode: '27', flag: '🇿🇦' },
+  { code: 'MX', name: 'Mexico', callingCode: '52', flag: '🇲🇽' },
+];
 
 export default function PhoneScreen() {
   const { colors, isDark } = useTheme();
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState<CountryCode>('US');
-  const [callingCode, setCallingCode] = useState('1');
+  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [confirmation, setConfirmation] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null);
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const onSelectCountry = (country: Country) => {
-    setCountryCode(country.cca2);
-    setCallingCode(country.callingCode[0]);
-  };
 
   const handleSendCode = async () => {
     if (!phoneNumber) {
@@ -32,7 +42,7 @@ export default function PhoneScreen() {
     if (loading) return;
     setLoading(true);
     try {
-      const fullPhoneNumber = `+${callingCode}${phoneNumber}`;
+      const fullPhoneNumber = `+${selectedCountry.callingCode}${phoneNumber}`;
       const conf = await signInWithPhone(fullPhoneNumber);
       setConfirmation(conf);
     } catch (err: any) {
@@ -55,6 +65,20 @@ export default function PhoneScreen() {
       setLoading(false);
     }
   };
+
+  const renderCountryItem = ({ item }: { item: typeof COUNTRIES[0] }) => (
+    <TouchableOpacity
+      style={[styles.countryItem, { borderBottomColor: colors.border }]}
+      onPress={() => {
+        setSelectedCountry(item);
+        setShowCountryPicker(false);
+      }}
+    >
+      <Text style={styles.countryFlag}>{item.flag}</Text>
+      <Text style={styles.countryName}>{item.name}</Text>
+      <Text style={[styles.countryCallingCode, { color: colors.textMuted }]}>+{item.callingCode}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -80,20 +104,13 @@ export default function PhoneScreen() {
             {!confirmation ? (
               <>
                 <View style={styles.phoneInputContainer}>
-                  <View style={[styles.countryPickerContainer, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
-                    <CountryPicker
-                      countryCode={countryCode}
-                      withFilter
-                      withFlag
-                      withCallingCode
-                      withCallingCodeButton
-                      onSelect={onSelectCountry}
-                      theme={isDark ? {
-                        backgroundColor: colors.surface,
-                        onBackgroundTextColor: colors.text,
-                      } : {}}
-                    />
-                  </View>
+                  <TouchableOpacity
+                    style={[styles.countryPickerContainer, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                    onPress={() => setShowCountryPicker(true)}
+                  >
+                    <Text style={styles.selectedCountryFlag}>{selectedCountry.flag}</Text>
+                    <Text style={styles.selectedCallingCode}>+{selectedCountry.callingCode}</Text>
+                  </TouchableOpacity>
                   <TextInput
                     style={[styles.phoneInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
                     placeholder="Phone Number"
@@ -151,6 +168,25 @@ export default function PhoneScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <Modal visible={showCountryPicker} animationType="slide" transparent={true}>
+        <View style={[styles.modalOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={styles.modalTitle}>Select Country</Text>
+              <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
+                <Text style={styles.modalCloseText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={COUNTRIES}
+              keyExtractor={(item) => item.code}
+              renderItem={renderCountryItem}
+              style={styles.countryList}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -192,8 +228,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 12,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     height: 56,
+    gap: 8,
+  },
+  selectedCountryFlag: {
+    fontSize: 24,
+  },
+  selectedCallingCode: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   phoneInput: {
     flex: 1,
@@ -234,5 +279,52 @@ const styles = StyleSheet.create({
   toggleButtonText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '70%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  countryList: {
+    flex: 1,
+  },
+  countryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  countryFlag: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  countryName: {
+    flex: 1,
+    fontSize: 16,
+  },
+  countryCallingCode: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
