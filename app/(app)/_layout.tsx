@@ -82,6 +82,7 @@ export default function AppLayout() {
       minimizeBehavior="automatic"
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
+        tabBarTranslucent: true,
       }}
     >
       <NativeTabs.Screen

@@ -1,8 +1,8 @@
 import React from 'react';
 import {
-  TouchableOpacity,
   StyleSheet,
   ViewStyle,
+  Pressable,
 } from 'react-native';
 import { View, Text, useThemeColor } from '../Themed';
 import { Avatar } from './Avatar';
@@ -10,6 +10,10 @@ import { UserProfile } from '../../types/user';
 import { formatConversationTime } from '../../utils/formatTime';
 import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { useUserStatus } from '../../hooks/useUserStatus';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface UserListItemProps {
   user?: Partial<UserProfile>;
@@ -38,11 +42,28 @@ export const UserListItem: React.FC<UserListItemProps> = ({
   const badgeBgColor = useThemeColor({}, 'primary');
   const displayName = title ?? user?.displayName ?? user?.username ?? 'Unknown';
 
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.97, { damping: 20, stiffness: 300 });
+  };
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+  };
+  const handlePress = () => {
+    Haptics.selectionAsync();
+    onPress?.();
+  };
+
   return (
-    <TouchableOpacity
-      style={[styles.container, style]}
-      onPress={onPress}
-      activeOpacity={0.7}
+    <AnimatedPressable
+      style={[styles.container, style, animatedStyle]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
     >
       <Avatar
         uri={avatarUri ?? user?.photoURL}
@@ -61,8 +82,8 @@ export const UserListItem: React.FC<UserListItemProps> = ({
         </View>
         <View style={styles.bottomRow}>
           <Text 
-            type="textSecondary"
-            numberOfLines={1} 
+            type={unreadCount ? "text" : "textSecondary"}
+            numberOfLines={2} 
             style={[styles.subtitle, unreadCount ? styles.subtitleUnread : undefined]}
           >
             {subtitle ?? ''}
@@ -77,7 +98,7 @@ export const UserListItem: React.FC<UserListItemProps> = ({
           )}
         </View>
       </View>
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 };
 
@@ -86,13 +107,14 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
   content: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 16,
     backgroundColor: 'transparent',
+    justifyContent: 'center',
   },
   topRow: {
     flexDirection: 'row',
@@ -102,41 +124,45 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   name: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontFamily: 'Inter_600SemiBold',
     flex: 1,
     marginRight: 8,
   },
   nameUnread: {
-    fontWeight: '800',
+    fontFamily: 'Inter_700Bold',
   },
   time: {
-    fontSize: 12,
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
   },
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: 'transparent',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
     flex: 1,
+    lineHeight: 20,
   },
   subtitleUnread: {
-    fontWeight: '700',
+    fontFamily: 'Inter_600SemiBold',
   },
   badge: {
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
+    marginLeft: 12,
   },
   badgeText: {
     color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
   },
 });

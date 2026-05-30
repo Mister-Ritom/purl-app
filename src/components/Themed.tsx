@@ -1,8 +1,5 @@
-import {
-  Text as DefaultText,
-  View as DefaultView,
-  useColorScheme,
-} from "react-native";
+import React from "react";
+import { useColorScheme, Text as RNText, View as RNView, TextProps as RNTextProps, ViewProps as RNViewProps } from "react-native";
 import { COLORS_LIGHT, COLORS_DARK } from "../utils/constants";
 
 export type ColorName = keyof typeof COLORS_LIGHT;
@@ -29,14 +26,14 @@ export type ThemeProps = {
   type?: ColorName; // Allow specifying the color type (e.g. 'textSecondary', 'surface')
 };
 
-export type TextProps = ThemeProps & DefaultText["props"];
-export type ViewProps = ThemeProps & DefaultView["props"];
+export type TextProps = ThemeProps & RNTextProps;
+export type ViewProps = ThemeProps & RNViewProps;
 
 export function Text(props: TextProps) {
   const { style, lightColor, darkColor, type = "text", ...otherProps } = props;
   const color = useThemeColor({ light: lightColor, dark: darkColor }, type);
 
-  return <DefaultText style={[{ color }, style]} {...otherProps} />;
+  return <RNText style={[{ color }, style]} {...otherProps} />;
 }
 
 export function View(props: ViewProps) {
@@ -52,5 +49,5 @@ export function View(props: ViewProps) {
     type,
   );
 
-  return <DefaultView style={[{ backgroundColor }, style]} {...otherProps} />;
+  return <RNView style={[{ backgroundColor }, style]} {...otherProps} />;
 }

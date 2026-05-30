@@ -12,11 +12,13 @@ import {
   ScrollView,
   Image as RNImage,
   Animated,
+  Keyboard,
 } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { View, Text } from "../../src/components/Themed";
+import { BlurView } from "expo-blur";
 import { useTheme } from "../../src/hooks/useTheme";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -101,6 +103,32 @@ export default function ConversationScreen() {
       useNativeDriver: true,
     }).start();
   };
+
+  // Animated value: 1 = actions visible, 0 = actions hidden (keyboard open)
+  const actionsAnim = useRef(new Animated.Value(1)).current;
+
+  // Keyboard visibility
+  useEffect(() => {
+    const DURATION = 300;
+    const showSub = Keyboard.addListener("keyboardWillShow", () => {
+      Animated.timing(actionsAnim, {
+        toValue: 0,
+        duration: DURATION,
+        useNativeDriver: false,
+      }).start();
+    });
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => {
+      Animated.timing(actionsAnim, {
+        toValue: 1,
+        duration: DURATION,
+        useNativeDriver: false,
+      }).start();
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [actionsAnim]);
 
   // State
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -330,17 +358,21 @@ export default function ConversationScreen() {
     try {
       const { ciphertext, nonce } = encryptMessage(activeKey, text);
 
-      await sendMessage(convId, {
-        senderId: user.uid,
-        type: "text",
-        encryptedContent: ciphertext,
-        nonce,
-        reactions: {},
-        readBy: {},
-        deletedFor: [],
-        deletedForEveryone: false,
-        timestamp: serverTimestamp() as any,
-      }, tempId);
+      await sendMessage(
+        convId,
+        {
+          senderId: user.uid,
+          type: "text",
+          encryptedContent: ciphertext,
+          nonce,
+          reactions: {},
+          readBy: {},
+          deletedFor: [],
+          deletedForEveryone: false,
+          timestamp: serverTimestamp() as any,
+        },
+        tempId,
+      );
     } catch (err) {
       Alert.alert("Send failed", "Message could not be sent.");
       setInputText(text);
@@ -492,18 +524,22 @@ export default function ConversationScreen() {
         caption || "media",
       );
 
-      await sendMessage(convId!, {
-        senderId: user!.uid,
-        type: "media",
-        encryptedContent: encContent,
-        nonce: encNonce,
-        mediaItems: uploadedItems,
-        reactions: {},
-        readBy: {},
-        deletedFor: [],
-        deletedForEveryone: false,
-        timestamp: serverTimestamp() as any,
-      }, tempId);
+      await sendMessage(
+        convId!,
+        {
+          senderId: user!.uid,
+          type: "media",
+          encryptedContent: encContent,
+          nonce: encNonce,
+          mediaItems: uploadedItems,
+          reactions: {},
+          readBy: {},
+          deletedFor: [],
+          deletedForEveryone: false,
+          timestamp: serverTimestamp() as any,
+        },
+        tempId,
+      );
 
       console.log("[Media] Firestore message sent successfully.");
 
@@ -594,27 +630,30 @@ export default function ConversationScreen() {
         file.name,
       );
 
-      await sendMessage(convId, {
-        senderId: user.uid,
-        type: "document",
-        encryptedContent: ciphertext,
-        nonce: encNonce,
-        mediaItems: [
-          {
-            url,
-            mimeType: file.mimeType ?? "application/octet-stream",
-            mediaEncryption,
-            fileName: file.name,
-            size: file.size,
-          },
-        ],
-        reactions: {},
-        readBy: {},
-        deletedFor: [],
-        deletedForEveryone: false,
-        timestamp: serverTimestamp() as any,
-      }, tempId);
-
+      await sendMessage(
+        convId,
+        {
+          senderId: user.uid,
+          type: "document",
+          encryptedContent: ciphertext,
+          nonce: encNonce,
+          mediaItems: [
+            {
+              url,
+              mimeType: file.mimeType ?? "application/octet-stream",
+              mediaEncryption,
+              fileName: file.name,
+              size: file.size,
+            },
+          ],
+          reactions: {},
+          readBy: {},
+          deletedFor: [],
+          deletedForEveryone: false,
+          timestamp: serverTimestamp() as any,
+        },
+        tempId,
+      );
     } catch {
       useChatStore.getState().updateMessage(convId, tempId, { isError: true });
       Alert.alert("Upload failed", "Could not send document.");
@@ -747,26 +786,30 @@ export default function ConversationScreen() {
           "audio",
         );
 
-        await sendMessage(convId, {
-          senderId: user.uid,
-          type: "audio",
-          encryptedContent: encContent,
-          nonce: encNonce,
-          mediaItems: [
-            {
-              url,
-              mimeType: "audio/m4a",
-              mediaEncryption,
-              duration: Math.floor(recorder.state.currentPosition / 1000),
-              size: 0,
-            },
-          ],
-          reactions: {},
-          readBy: {},
-          deletedFor: [],
-          deletedForEveryone: false,
-          timestamp: serverTimestamp() as any,
-        }, tempId);
+        await sendMessage(
+          convId,
+          {
+            senderId: user.uid,
+            type: "audio",
+            encryptedContent: encContent,
+            nonce: encNonce,
+            mediaItems: [
+              {
+                url,
+                mimeType: "audio/m4a",
+                mediaEncryption,
+                duration: Math.floor(recorder.state.currentPosition / 1000),
+                size: 0,
+              },
+            ],
+            reactions: {},
+            readBy: {},
+            deletedFor: [],
+            deletedForEveryone: false,
+            timestamp: serverTimestamp() as any,
+          },
+          tempId,
+        );
       } catch (err) {
         useChatStore
           .getState()
@@ -1222,7 +1265,7 @@ export default function ConversationScreen() {
         ]}
       >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={[styles.backIcon, { color: colors.text }]}>‹</Text>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -1275,7 +1318,7 @@ export default function ConversationScreen() {
             }}
           >
             <Animated.View style={{ transform: [{ scale: voiceScale }] }}>
-              <Text style={styles.headerBtnIcon}>📞</Text>
+              <Ionicons name="call" size={24} color={colors.text} />
             </Animated.View>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1298,7 +1341,7 @@ export default function ConversationScreen() {
             }}
           >
             <Animated.View style={{ transform: [{ scale: videoScale }] }}>
-              <Text style={styles.headerBtnIcon}>📹</Text>
+              <Ionicons name="videocam" size={24} color={colors.text} />
             </Animated.View>
           </TouchableOpacity>
         </View>
@@ -1334,91 +1377,121 @@ export default function ConversationScreen() {
         )}
 
         {!isSelectionMode && (
-          <View
-            style={[
-              styles.inputBar,
-              {
-                paddingBottom: insets.bottom + 8,
-                backgroundColor: colors.surface,
-                borderTopColor: colors.border,
-              },
-            ]}
+          <Animated.View
+            style={{
+              paddingBottom: actionsAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [8, insets.bottom + 8],
+              }),
+              borderTopColor: colors.border,
+              borderTopWidth: StyleSheet.hairlineWidth,
+            }}
           >
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={pickAndSendMedia}
+            <BlurView
+              tint={
+                colors.background === "#121212" ||
+                colors.background === "#000000"
+                  ? "dark"
+                  : "light"
+              }
+              intensity={80}
+              style={[styles.inputBar, { paddingBottom: 0, borderTopWidth: 0 }]}
             >
-              <Text style={styles.attachIcon}>⊕</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={takePhotoOrVideo}
-            >
-              <Text style={styles.attachIcon}>📷</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={pickAndSendDocument}
-            >
-              <Text style={styles.attachIcon}>📁</Text>
-            </TouchableOpacity>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.border,
-                  color: colors.text,
-                },
-              ]}
-              value={inputText}
-              onChangeText={(t) => {
-                setInputText(t);
-                if (t.length > 0) onTyping();
-                else onStopTyping();
-              }}
-              placeholder="Message..."
-              placeholderTextColor={colors.textMuted}
-              multiline
-              maxLength={4000}
-              onSubmitEditing={sendTextMessage}
-            />
-            {inputText.trim() ? (
-              <TouchableOpacity
-                style={[
-                  styles.sendBtn,
-                  !inputText.trim() && styles.sendBtnDisabled,
-                ]}
-                onPress={sendTextMessage}
-                disabled={!inputText.trim() || sending}
+              <Animated.View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  opacity: actionsAnim,
+                  width: actionsAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 112],
+                  }),
+                  overflow: "hidden",
+                }}
               >
-                {sending ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.sendIcon}>▶</Text>
-                )}
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
+                <TouchableOpacity
+                  style={styles.attachBtn}
+                  onPress={pickAndSendMedia}
+                >
+                  <Ionicons
+                    name="images-outline"
+                    size={24}
+                    color={colors.text}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.attachBtn}
+                  onPress={takePhotoOrVideo}
+                >
+                  <Ionicons name="camera" size={24} color={colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.attachBtn}
+                  onPress={pickAndSendDocument}
+                >
+                  <Ionicons name="document" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </Animated.View>
+              <TextInput
                 style={[
-                  styles.sendBtn,
-                  isRecording && styles.recordingBtn,
-                  isRecordingLoading && styles.sendBtnDisabled,
+                  styles.input,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
                 ]}
-                onPressIn={startRecording}
-                onPressOut={stopAndSendAudio}
-                disabled={isRecordingLoading}
-              >
-                {isRecordingLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.sendIcon}>
-                    {isRecording ? "⏹" : "🎤"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
+                value={inputText}
+                onChangeText={(t) => {
+                  setInputText(t);
+                  if (t.length > 0) onTyping();
+                  else onStopTyping();
+                }}
+                placeholder="Message..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                maxLength={4000}
+                onSubmitEditing={sendTextMessage}
+              />
+              {inputText.trim() ? (
+                <TouchableOpacity
+                  style={[
+                    styles.sendBtn,
+                    !inputText.trim() && styles.sendBtnDisabled,
+                  ]}
+                  onPress={sendTextMessage}
+                  disabled={!inputText.trim() || sending}
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="send" size={24} color={colors.text} />
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.sendBtn,
+                    isRecording && styles.recordingBtn,
+                    isRecordingLoading && styles.sendBtnDisabled,
+                  ]}
+                  onPressIn={startRecording}
+                  onPressOut={stopAndSendAudio}
+                  disabled={isRecordingLoading}
+                >
+                  {isRecordingLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons
+                      name={isRecording ? "stop" : "mic"}
+                      size={24}
+                      color={colors.text}
+                    />
+                  )}
+                </TouchableOpacity>
+              )}
+            </BlurView>
+          </Animated.View>
         )}
 
         {isSelectionMode && (
@@ -1671,10 +1744,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  headerInfo: { flex: 1 },
+  headerInfo: { flex: 1, backgroundColor: "transparent" },
   headerName: { fontSize: 17, fontWeight: "700" },
   headerStatus: { fontSize: 13 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "transparent",
+  },
   headerBtn: { padding: 8 },
   headerBtnIcon: { fontSize: 20 },
   selectionBar: {
@@ -1706,28 +1784,34 @@ const styles = StyleSheet.create({
   ownWrapper: { alignItems: "flex-end" },
   theirWrapper: { alignItems: "flex-start" },
   bubble: {
-    padding: 10,
-    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20, // Squircular look
     maxWidth: "78%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  ownBubble: { backgroundColor: "#6366F1", borderBottomRightRadius: 4 }, // Use a nice indigo for primary
-  theirBubble: { borderBottomLeftRadius: 4 },
-  msgText: { fontSize: 15, lineHeight: 21 },
+  ownBubble: { backgroundColor: "#6366F1", borderBottomRightRadius: 6 }, // Electric indigo
+  theirBubble: { borderBottomLeftRadius: 6 },
+  msgText: { fontSize: 16, lineHeight: 22, fontFamily: "Inter_400Regular" },
   ownText: { color: "#fff" },
   theirText: {},
-  deletedText: { fontSize: 14, fontStyle: "italic", opacity: 0.6 },
+  deletedText: {
+    fontSize: 14,
+    fontStyle: "italic",
+    opacity: 0.6,
+    fontFamily: "Inter_400Regular",
+  },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
     marginTop: 4,
   },
-  msgTime: { fontSize: 11 },
-  readReceipt: { fontSize: 11 },
+  msgTime: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  readReceipt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   mediaGridWrapper: {
     width: 240,
     flexDirection: "row",
@@ -1829,33 +1913,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     padding: 10,
-    backgroundColor: "#121212",
-    borderTopWidth: 1,
-    borderTopColor: "#272729",
-    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+    backgroundColor: "transparent",
   },
   attachBtn: { padding: 8, marginBottom: 2 },
-  attachIcon: { fontSize: 22 },
+  attachIcon: { fontSize: 24, color: "#6366F1" }, // iMessage blue/indigo tint
   input: {
     flex: 1,
-    borderRadius: 22,
+    borderRadius: 24, // squircular
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 16,
+    fontFamily: "Inter_400Regular",
     maxHeight: 120,
     borderWidth: 1,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#6366F1",
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 4,
   },
   sendBtnDisabled: { opacity: 0.5 },
   recordingBtn: { backgroundColor: "#FF3B30" },
-  sendIcon: { fontSize: 18, color: "#fff" },
+  sendIcon: { fontSize: 14, color: "#fff", marginLeft: 2 },
   previewModal: {
     flex: 1,
   },

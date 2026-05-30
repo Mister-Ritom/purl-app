@@ -4,6 +4,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
+  Pressable,
 } from "react-native";
 import { View, Text } from "../../../src/components/Themed";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,6 +24,10 @@ import { getFirestore, doc, getDoc } from "@react-native-firebase/firestore";
 import { UserProfile } from "../../../src/types/user";
 import { StoryBar } from "../../../src/components/chat/StoryBar";
 import { Image } from "expo-image";
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function ChatListScreen() {
   const { colors } = useTheme();
@@ -34,6 +39,9 @@ export default function ChatListScreen() {
   >([]);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState("");
+
+  const searchScale = useSharedValue(1);
+  const fabScale = useSharedValue(1);
 
   useEffect(() => {
     enrichConversations();
@@ -110,45 +118,60 @@ export default function ChatListScreen() {
     });
   }, [enrichedConvs, searchText]);
 
-  const renderItem = ({ item }: { item: (typeof enrichedConvs)[0] }) => {
+  const renderItem = ({ item, index }: { item: (typeof enrichedConvs)[0], index: number }) => {
     const displayName = item.isGroup
       ? (item.groupName ?? "Group")
       : (item.otherUser?.displayName ?? item.otherUser?.username ?? "Unknown");
     const unreadCount = item.unreadCounts?.[user?.uid ?? ""] ?? 0;
 
     return (
-      <UserListItem
-        user={item.otherUser}
-        avatarUri={item.isGroup ? item.groupPhotoUrl : undefined}
-        title={displayName}
-        subtitle={item.preview}
-        timestamp={item.lastMessage?.timestamp}
-        unreadCount={unreadCount}
-        onPress={() => router.push(`/chats/${item.id}`)}
-      />
+      <Animated.View entering={FadeInUp.delay(50 * index).springify().damping(20)}>
+        <UserListItem
+          user={item.otherUser}
+          avatarUri={item.isGroup ? item.groupPhotoUrl : undefined}
+          title={displayName}
+          subtitle={item.preview}
+          timestamp={item.lastMessage?.timestamp}
+          unreadCount={unreadCount}
+          onPress={() => router.push(`/chats/${item.id}`)}
+        />
+      </Animated.View>
     );
   };
+
+  const animatedSearchStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: searchScale.value }]
+  }));
+
+  const animatedFabStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }]
+  }));
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       {/* Search bar */}
       <View style={styles.searchContainer}>
-        <TouchableOpacity
+        <AnimatedPressable
           style={[
             styles.searchBar,
             {
               backgroundColor: colors.surfaceElevated,
               borderColor: colors.border,
             },
+            animatedSearchStyle
           ]}
-          onPress={() => router.push("/contacts")}
-          activeOpacity={0.9}
+          onPressIn={() => { searchScale.value = withSpring(0.97, { damping: 20 }); }}
+          onPressOut={() => { searchScale.value = withSpring(1, { damping: 20 }); }}
+          onPress={() => {
+            Haptics.selectionAsync();
+            router.push("/contacts");
+          }}
         >
           <Text style={styles.searchIcon}>🔍</Text>
           <Text style={[styles.placeholderText, { color: colors.textMuted }]}>
             Search chats, contacts or global...
           </Text>
-        </TouchableOpacity>
+        </AnimatedPressable>
       </View>
 
       {conversations.length === 0 ? (
@@ -177,6 +200,7 @@ export default function ChatListScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setRefreshing(true);
                 setTimeout(() => setRefreshing(false), 600);
               }}
@@ -187,17 +211,23 @@ export default function ChatListScreen() {
       )}
 
       {/* FAB */}
-      <View style={styles.fabContainer}>
-        <TouchableOpacity
+      <Animated.View entering={FadeInUp.delay(300).springify()} style={styles.fabContainer}>
+        <AnimatedPressable
           style={[
             styles.fab,
             { backgroundColor: colors.primary, shadowColor: colors.primary },
+            animatedFabStyle
           ]}
-          onPress={() => router.push("/invite/keys")}
+          onPressIn={() => { fabScale.value = withSpring(0.9, { damping: 20 }); }}
+          onPressOut={() => { fabScale.value = withSpring(1, { damping: 20 }); }}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push("/invite/keys");
+          }}
         >
           <Text style={styles.fabIcon}>🔑</Text>
-        </TouchableOpacity>
-      </View>
+        </AnimatedPressable>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -205,7 +235,7 @@ export default function ChatListScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   searchContainer: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 4,
   },
@@ -213,29 +243,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    height: 44,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 16, // squircle
     borderWidth: 1,
     gap: 8,
   },
   searchIcon: { fontSize: 16 },
-  input: { flex: 1, fontSize: 16 },
   placeholderText: {
     flex: 1,
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
   },
-  searchText: { fontSize: 15 },
-  separator: { height: 1, marginLeft: 76 },
+  separator: { height: StyleSheet.hairlineWidth, marginLeft: 80 },
   fabContainer: { position: "absolute", right: 20, bottom: 90 },
   fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
     elevation: 10,
   },
   fabIcon: { fontSize: 24 },

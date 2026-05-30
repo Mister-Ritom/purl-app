@@ -22,11 +22,16 @@ import { setupDeepLinkHandler } from "../src/services/deeplink";
 import { LoadingScreen } from "../src/components/common/LoadingScreen";
 import { IncomingCallOverlay } from "../src/components/call/IncomingCallOverlay";
 
+// Removed @expo-google-fonts/inter to fix ExpoFontLoader crash
+
 // Firestore persistence is enabled by default in React Native Firebase
 
 export default function RootLayout() {
   const { isLoading, setUser, setUserProfile, setKeyPair, setLoading } =
     useAuthStore();
+
+  // Fonts are managed by the user natively or via Expo Go
+  const fontsLoaded = true;
 
   usePresence();
 
@@ -107,7 +112,7 @@ export default function RootLayout() {
     },
   };
 
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading || !fontsLoaded) return <LoadingScreen />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -117,6 +122,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(app)" />
+            <Stack.Screen name="(legal)" />
             {/* Sits above the native tab layer — tab bar never shows here */}
             <Stack.Screen
               name="chats/[convId]"

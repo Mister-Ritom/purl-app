@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { View, Text, useThemeColor } from '../../src/components/Themed';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import Ionicons from "react-native-vector-icons/dist/Ionicons";
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../src/store/authStore';
 import { uploadAvatar, updateUserProfile } from '../../src/services/firestore';

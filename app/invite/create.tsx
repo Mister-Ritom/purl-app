@@ -13,7 +13,7 @@ import { View, Text } from '../../src/components/Themed';
 import { useTheme } from '../../src/hooks/useTheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Ionicons from 'react-native-vector-icons/dist/Ionicons';
+import Ionicons from "react-native-vector-icons/dist/Ionicons";
 import { getFirestore, doc, setDoc, Timestamp, serverTimestamp } from '@react-native-firebase/firestore';
 import { useAuthStore } from '../../src/store/authStore';
 import { generateInviteToken } from '../../src/utils/generateKey';

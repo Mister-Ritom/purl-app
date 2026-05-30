@@ -5,50 +5,52 @@ export const FIREBASE_STORAGE_BUCKET = "purl-app.firebasestorage.app";
 export const FIREBASE_DATABASE_URL = "https://purl-app-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 export const COLORS_DARK = {
-  primary: "#6C63FF",
-  primaryDark: "#4B44CC",
-  background: "#0A0A0F",
-  surface: "#12121A",
-  surfaceElevated: "#1A1A28",
-  border: "#2A2A3D",
+  primary: "#5E5CE6", // Apple-style Indigo for Dark Mode
+  primaryDark: "#4F46E5",
+  background: "#000000", // OLED True Black
+  surface: "#1C1C1E", // Apple System Gray 6
+  surfaceElevated: "#2C2C2E", // Apple System Gray 5
+  border: "#38383A",
   text: "#FFFFFF",
-  textSecondary: "#8888AA",
-  textMuted: "#555570",
-  online: "#22C55E",
-  error: "#EF4444",
-  warning: "#F59E0B",
-  success: "#22C55E",
-  sent: "#6C63FF",
-  received: "#1A1A28",
-  inputBg: "#1A1A28",
+  textSecondary: "#EBEBF599", // iOS Secondary Label (60% opacity)
+  textMuted: "#EBEBF54D", // iOS Tertiary Label (30% opacity)
+  online: "#32D74B", // Apple Green
+  error: "#FF453A", // Apple Red
+  warning: "#FF9F0A", // Apple Orange
+  success: "#32D74B",
+  sent: "#5E5CE6",
+  received: "#2C2C2E",
+  inputBg: "#1C1C1E",
+  glass: "rgba(28, 28, 30, 0.7)", // For BlurViews
 };
 
 export const COLORS_LIGHT = {
-  primary: "#6366F1", // Indigo 500
-  primaryDark: "#4F46E5", // Indigo 600
+  primary: "#4F46E5", // Electric Indigo
+  primaryDark: "#4338CA",
   background: "#FFFFFF",
-  surface: "#F8FAFC", // Slate 50
-  surfaceElevated: "#F1F5F9", // Slate 100
-  border: "#E2E8F0", // Slate 200
-  text: "#0F172A", // Slate 900
-  textSecondary: "#475569", // Slate 600
-  textMuted: "#94A3B8", // Slate 400
-  online: "#10B981", // Emerald 500
-  error: "#EF4444", // Red 500
-  warning: "#F59E0B", // Amber 500
-  success: "#10B981", // Emerald 500
-  sent: "#6366F1",
-  received: "#F1F5F9",
-  inputBg: "#F8FAFC",
+  surface: "#F2F2F7", // Apple System Gray 6
+  surfaceElevated: "#E5E5EA", // Apple System Gray 5
+  border: "#C6C6C8",
+  text: "#000000",
+  textSecondary: "#3C3C4399", // iOS Secondary Label (60% opacity)
+  textMuted: "#3C3C434D", // iOS Tertiary Label (30% opacity)
+  online: "#34C759", // Apple Green
+  error: "#FF3B30", // Apple Red
+  warning: "#FF9500", // Apple Orange
+  success: "#34C759",
+  sent: "#4F46E5",
+  received: "#E5E5EA",
+  inputBg: "#F2F2F7",
+  glass: "rgba(255, 255, 255, 0.7)", // For BlurViews
 };
 
 // Legacy export for backward compatibility
 export const COLORS = COLORS_DARK;
 
 export const FONTS = {
-  regular: "System",
-  medium: "System",
-  bold: "System",
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  bold: "Inter_700Bold",
   mono: "Courier New",
 };
 
@@ -57,9 +59,9 @@ export const SIZES = {
   avatarMd: 48,
   avatarLg: 80,
   avatarXl: 120,
-  borderRadius: 12,
-  borderRadiusSm: 8,
-  borderRadiusLg: 20,
+  borderRadius: 16, // Squircular feel
+  borderRadiusSm: 10,
+  borderRadiusLg: 24,
   borderRadiusFull: 999,
 };
 

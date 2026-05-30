@@ -1,6 +1,10 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, Pressable } from 'react-native';
 import { View, Text, useThemeColor } from '../Themed';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, FadeInUp } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface EmptyStateProps {
   icon?: string;
@@ -18,18 +22,41 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onAction,
 }) => {
   const buttonBgColor = useThemeColor({}, 'primary');
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.96, { damping: 20, stiffness: 300 });
+  };
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 20, stiffness: 300 });
+  };
+  const handlePress = () => {
+    if (onAction) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      onAction();
+    }
+  };
 
   return (
-    <View style={styles.container}>
+    <Animated.View entering={FadeInUp.duration(600).springify().damping(20)} style={styles.container}>
       <Text style={styles.icon}>{icon}</Text>
       <Text style={styles.title}>{title}</Text>
       {subtitle && <Text type="textSecondary" style={styles.subtitle}>{subtitle}</Text>}
       {actionLabel && onAction && (
-        <TouchableOpacity style={[styles.button, { backgroundColor: buttonBgColor }]} onPress={onAction}>
+        <AnimatedPressable
+          style={[styles.button, { backgroundColor: buttonBgColor }, animatedStyle]}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          onPress={handlePress}
+        >
           <Text style={styles.buttonText}>{actionLabel}</Text>
-        </TouchableOpacity>
+        </AnimatedPressable>
       )}
-    </View>
+    </Animated.View>
   );
 };
 
@@ -41,29 +68,35 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   icon: {
-    fontSize: 56,
-    marginBottom: 20,
+    fontSize: 64,
+    marginBottom: 24,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
     textAlign: 'center',
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
   },
   button: {
-    marginTop: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 24,
+    marginTop: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   buttonText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
   },
 });

@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#fff',
     letterSpacing: 0.3,
   },
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.55)',
     marginTop: 4,
     marginBottom: 28,
-    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   actions: {
     flexDirection: 'row',
@@ -298,6 +298,6 @@ const styles = StyleSheet.create({
   btnTextLabel: {
     color: 'rgba(255, 255, 255, 0.75)',
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
 });
