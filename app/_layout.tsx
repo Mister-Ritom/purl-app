@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, Platform } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -19,6 +19,8 @@ import {
   registerFcmToken,
 } from "../src/services/messaging";
 import { setupDeepLinkHandler } from "../src/services/deeplink";
+import { initAgoraEngine } from "../src/services/agora";
+import { request, PERMISSIONS } from "react-native-permissions";
 import { LoadingScreen } from "../src/components/common/LoadingScreen";
 import { IncomingCallOverlay } from "../src/components/call/IncomingCallOverlay";
 
@@ -53,6 +55,14 @@ export default function RootLayout() {
       setUser(firebaseUser);
       if (firebaseUser) {
         registerFcmToken(firebaseUser.uid);
+        // Pre-warm Agora engine and request mic permission now so that
+        // when the user places or receives a call, those steps are instant.
+        initAgoraEngine();
+        request(
+          Platform.OS === 'ios'
+            ? PERMISSIONS.IOS.MICROPHONE
+            : PERMISSIONS.ANDROID.RECORD_AUDIO
+        ).catch(() => {});
         const userDocRef = doc(getFirestore(), "users", firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {

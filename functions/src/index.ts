@@ -30,7 +30,7 @@ function hashUidToNumber(uid: string): number {
 
 // ─── 1. generateAgoraToken ─────────────────────────────────────────────────
 export const generateAgoraToken = onCall(
-  { secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public' },
+  { secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public', minInstances: 1 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Authentication required');
@@ -75,7 +75,7 @@ export const generateAgoraToken = onCall(
 
 // ─── 2. initiateCall ────────────────────────────────────────────────────────
 export const initiateCall = onCall(
-  { secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public' },
+  { secrets: [AGORA_APP_ID, AGORA_APP_CERTIFICATE], invoker: 'public', minInstances: 1 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Authentication required');
@@ -98,17 +98,21 @@ export const initiateCall = onCall(
     const callId = callRef.id;
     const channelName = callId;
 
-    // Generate token for the caller
     const expireTs = Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_S;
-    const agoraUid = hashUidToNumber(callerId);
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      appId,
-      certificate,
-      channelName,
-      agoraUid,
-      RtcRole.PUBLISHER,
-      expireTs
-    );
+
+    // Pre-generate tokens for all participants in one shot.
+    // This means the receiver never needs a second Cloud Function call.
+    const agoraTokens: Record<string, string> = {};
+    for (const uid of [callerId, ...receiverIds]) {
+      agoraTokens[uid] = RtcTokenBuilder.buildTokenWithUid(
+        appId,
+        certificate,
+        channelName,
+        hashUidToNumber(uid),
+        RtcRole.PUBLISHER,
+        expireTs
+      );
+    }
 
     const callerDoc = await db.collection('users').doc(callerId).get();
     const callerData = callerDoc.data();
@@ -120,13 +124,14 @@ export const initiateCall = onCall(
       type,
       status: 'ringing',
       channelName,
-      agoraToken: token, // This is the token for the caller
+      agoraToken: agoraTokens[callerId],  // legacy field for compatibility
+      agoraTokens,                         // per-uid map — receivers use this directly
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       callerUsername: callerData?.username ?? callerData?.displayName ?? 'Someone',
       callerPhotoURL: callerData?.photoURL ?? '',
     });
 
-    return { callId, agoraToken: token };
+    return { callId, agoraToken: agoraTokens[callerId] };
   }
 );
 
